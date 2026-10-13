@@ -159,13 +159,38 @@ def render_post(text, key, out_dir):
     return n
 
 
+_FF = []
+
+
+def find_ffmpeg():
+    """ffmpeg з системи або (якщо нема) з pip-пакета imageio-ffmpeg — ставиться один раз за запуск."""
+    if _FF:
+        return _FF[0]
+    path = shutil.which("ffmpeg")
+    if not path:
+        try:
+            import imageio_ffmpeg
+        except ImportError:
+            subprocess.run([sys.executable, "-m", "pip", "install", "-q", "imageio-ffmpeg"], check=False)
+            try:
+                import imageio_ffmpeg
+            except ImportError:
+                imageio_ffmpeg = None
+        if imageio_ffmpeg:
+            path = imageio_ffmpeg.get_ffmpeg_exe()
+    _FF.append(path)
+    return path
+
+
 def make_video(d, slides):
     """Ролик 1080x1920 зі слайдів tt_N.jpg: плавні переходи, тривалість слайда залежить від довжини тексту, тиха аудіодоріжка."""
-    if not shutil.which("ffmpeg"):
+    ff = find_ffmpeg()
+    if not ff:
+        print("video skipped: ffmpeg not found")
         return False
     xf = 0.4
     durs = [max(3.5, min(7.0, 1.2 + 0.3 * len(s.split()))) for s in slides]
-    cmd = ["ffmpeg", "-y", "-loglevel", "error"]
+    cmd = [ff, "-y", "-loglevel", "error"]
     for i, dur in enumerate(durs, 1):
         cmd += ["-loop", "1", "-t", f"{dur + xf:.2f}", "-framerate", "25", "-i", str(d / f"tt_{i}.jpg")]
     cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
