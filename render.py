@@ -235,26 +235,15 @@ def make_music(path, seconds, seed):
 
 # ---------- підпис для TikTok ----------
 
-HASHTAGS = "#vPixselle #маркетинг #інтернетмагазин #ecommerce #автоматизація"
+DM_LINE = "Хочете більш детально — пишіть у приватні повідомлення."
 
 
 def make_caption(text):
-    """Підпис: опис (хук + суть) + заклик написати повідомлення з кодовим словом із фінального слайда + хештеги."""
+    """Підпис = оригінальний текст посту (як у Threads). Якщо в тексті немає кодового слова в «», додається заклик писати в приватні повідомлення."""
     t = text.replace("\r\n", "\n").strip()
-    paras = [p.strip() for p in re.split(r"\n\s*\n", t) if p.strip()] or [t]
-    cta_idx = next((i for i in range(len(paras) - 1, -1, -1) if re.search("«[^»]+»", paras[i])), None)
-    if cta_idx is not None:
-        key = re.search("«([^»]+)»", paras[cta_idx]).group(1)
-        rest = paras[cta_idx][re.search("«[^»]+»", paras[cta_idx]).end():].lstrip(" —-:").strip()
-        body = "\n\n".join(paras[:cta_idx])
-        cta = f"👉 Напиши мені в повідомлення слово «{key}»" + (f" — {rest}" if rest else "")
-    else:
-        body = "\n\n".join(paras[:-1]) if len(paras) > 1 else ""
-        cta = "👉 " + paras[-1] if len(paras) > 1 else "👉 " + paras[0]
-        if not body:
-            cta = paras[0]
-    cap = (body + "\n\n" if body else "") + cta + "\n\n" + HASHTAGS
-    return cap[:2000]
+    if re.search("«[^»]+»", t):
+        return t[:2200]
+    return (t + "\n\n" + DM_LINE)[:2200]
 
 
 _FF = []
@@ -342,6 +331,15 @@ def main():
         seen.add(key)
         render_post(text, key, out)
         done += 1
+    extra = ROOT / "test_posts.txt"  # разові тестові тексти, розділені рядком =====
+    if extra.exists():
+        for chunk in extra.read_text(encoding="utf-8").split("\n=====\n"):
+            text = chunk.replace("\r\n", "\n").strip()
+            key = text_key(text) if text else None
+            if key and key not in seen:
+                seen.add(key)
+                render_post(text, key, out)
+                done += 1
     print(f"rendered posts: {done}")
 
 
