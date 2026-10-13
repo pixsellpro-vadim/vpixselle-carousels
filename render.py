@@ -155,8 +155,106 @@ def render_post(text, key, out_dir):
             sc = scene(fmt, w, h, pose, dx)
             img = mc.render(slides, fmt, w, h, i, n, scene=sc)
             img.save(d / f"{prefix}_{i}.jpg", "JPEG", quality=88, subsampling=0, optimize=True)
-    make_video(d, slides)
+    (d / "caption.txt").write_text(make_caption(text), encoding="utf-8")
+    make_video(d, slides, key)
     return n
+
+
+
+# ---------- музика (власний синтез, без авторських прав) ----------
+
+def make_music(path, seconds, seed):
+    """Лоу-фай трек: акорди Am-F-C-G, бас, мелодія пентатонікою, ритм. Тональність і темп трохи залежать від ключа посту."""
+    import wave
+    sr = 44100
+    rng = np.random.default_rng(seed)
+    bpm = 84 + seed % 9
+    shift = (seed // 9) % 5  # півтони вгору
+    beat = 60.0 / bpm
+    n = int(sr * seconds)
+    t = np.arange(n) / sr
+    out = np.zeros(n)
+
+    def hz(midi):
+        return 440.0 * 2 ** ((midi + shift - 69) / 12)
+
+    def tone(freq, start, dur, amp, attack=0.02, decay=3.0, harm=(1.0, 0.35, 0.12)):
+        i0 = int(start * sr)
+        m = min(int(dur * sr), n - i0)
+        if m <= 0:
+            return
+        tt = np.arange(m) / sr
+        w = sum(a * np.sin(2 * np.pi * freq * (k + 1) * tt) for k, a in enumerate(harm))
+        env = np.minimum(tt / attack, 1.0) * np.exp(-decay * tt)
+        out[i0:i0 + m] += amp * w * env
+
+    chords = [(45, [57, 60, 64]), (41, [53, 57, 60]), (48, [60, 64, 67]), (43, [55, 59, 62])]  # бас + акорд (MIDI)
+    penta = [69, 72, 74, 76, 79, 81]
+    bar = 4 * beat
+    nbars = int(seconds / bar) + 1
+    for b in range(nbars):
+        bass, notes = chords[b % 4]
+        t0 = b * bar
+        for nt in notes:  # м'яка підкладка
+            tone(hz(nt), t0, bar * 1.05, 0.09, attack=0.25, decay=0.6, harm=(1.0, 0.2))
+        tone(hz(bass), t0, beat * 2.0, 0.22, attack=0.01, decay=2.2, harm=(1.0, 0.4))
+        tone(hz(bass), t0 + beat * 2.5, beat * 1.4, 0.16, attack=0.01, decay=2.5, harm=(1.0, 0.4))
+        for e in range(8):  # мелодія вісімками, не кожну
+            if rng.random() < 0.55:
+                tone(hz(int(rng.choice(penta))), t0 + e * beat / 2, beat * 1.5, 0.07, attack=0.005, decay=5.0)
+        for q in range(4):  # ритм
+            tq = t0 + q * beat
+            i0 = int(tq * sr)
+            m = min(int(0.25 * sr), n - i0)
+            if m <= 0:
+                continue
+            tt = np.arange(m) / sr
+            if q in (0, 2):  # бочка
+                f = 50 + 70 * np.exp(-tt * 28)
+                out[i0:i0 + m] += 0.35 * np.sin(2 * np.pi * np.cumsum(f) / sr) * np.exp(-tt * 14)
+            else:  # снейр-шум
+                out[i0:i0 + m] += 0.10 * rng.standard_normal(m) * np.exp(-tt * 22)
+            for hh in (0, 0.5):  # хет
+                j0 = int((tq + hh * beat) * sr)
+                mm = min(int(0.05 * sr), n - j0)
+                if mm > 0:
+                    noise = rng.standard_normal(mm)
+                    noise = np.diff(noise, prepend=0.0)  # прибрати низи
+                    out[j0:j0 + mm] += 0.04 * noise * np.exp(-np.arange(mm) / sr * 70)
+    # легке згладжування високих і нормалізація
+    k = np.ones(3) / 3
+    out = np.convolve(out, k, mode="same")
+    out = out / (np.max(np.abs(out)) + 1e-9) * 0.6
+    pcm = (np.clip(out, -1, 1) * 32767).astype(np.int16)
+    with wave.open(str(path), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sr)
+        wf.writeframes(pcm.tobytes())
+
+
+# ---------- підпис для TikTok ----------
+
+HASHTAGS = "#vPixselle #маркетинг #інтернетмагазин #ecommerce #автоматизація"
+
+
+def make_caption(text):
+    """Підпис: опис (хук + суть) + заклик написати повідомлення з кодовим словом із фінального слайда + хештеги."""
+    t = text.replace("\r\n", "\n").strip()
+    paras = [p.strip() for p in re.split(r"\n\s*\n", t) if p.strip()] or [t]
+    cta_idx = next((i for i in range(len(paras) - 1, -1, -1) if re.search("«[^»]+»", paras[i])), None)
+    if cta_idx is not None:
+        key = re.search("«([^»]+)»", paras[cta_idx]).group(1)
+        rest = paras[cta_idx][re.search("«[^»]+»", paras[cta_idx]).end():].lstrip(" —-:").strip()
+        body = "\n\n".join(paras[:cta_idx])
+        cta = f"👉 Напиши мені в повідомлення слово «{key}»" + (f" — {rest}" if rest else "")
+    else:
+        body = "\n\n".join(paras[:-1]) if len(paras) > 1 else ""
+        cta = "👉 " + paras[-1] if len(paras) > 1 else "👉 " + paras[0]
+        if not body:
+            cta = paras[0]
+    cap = (body + "\n\n" if body else "") + cta + "\n\n" + HASHTAGS
+    return cap[:2000]
 
 
 _FF = []
@@ -182,7 +280,7 @@ def find_ffmpeg():
     return path
 
 
-def make_video(d, slides):
+def make_video(d, slides, key="0" * 8):
     """Ролик 1080x1920 зі слайдів tt_N.jpg: плавні переходи, тривалість слайда залежить від довжини тексту, тиха аудіодоріжка."""
     ff = find_ffmpeg()
     if not ff:
@@ -193,17 +291,24 @@ def make_video(d, slides):
     cmd = [ff, "-y", "-loglevel", "error"]
     for i, dur in enumerate(durs, 1):
         cmd += ["-loop", "1", "-t", f"{dur + xf:.2f}", "-framerate", "25", "-i", str(d / f"tt_{i}.jpg")]
-    cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
+    own = ROOT / "music.mp3"  # власний трек: поклади music.mp3 у корінь репозиторію, і він замінить згенерований
+    music = own if own.exists() else d / "_music.wav"
+    if not own.exists():
+        make_music(music, sum(durs) + xf + 1, int(key[:8], 16))
+    cmd += ["-stream_loop", "-1", "-i", str(music)]
     parts = [f"[{i}:v]setsar=1,format=yuv420p[v{i}]" for i in range(len(durs))]
     last, acc = "v0", durs[0]
     for i in range(1, len(durs)):
         parts.append(f"[{last}][v{i}]xfade=transition=fade:duration={xf}:offset={acc:.2f}[x{i}]")
         last, acc = f"x{i}", acc + durs[i]
     total = acc + xf
-    cmd += ["-filter_complex", ";".join(parts), "-map", f"[{last}]", "-map", f"{len(durs)}:a",
+    parts.append(f"[{len(durs)}:a]afade=t=in:d=0.6,afade=t=out:st={max(total - 1.8, 0):.2f}:d=1.8,volume=1.9,aformat=channel_layouts=stereo[a]")
+    cmd += ["-filter_complex", ";".join(parts), "-map", f"[{last}]", "-map", "[a]",
             "-t", f"{total:.2f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "25", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "64k", "-shortest", "-movflags", "+faststart", str(d / "tt_video.mp4")]
+            "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart", str(d / "tt_video.mp4")]
     r = subprocess.run(cmd, capture_output=True, text=True)
+    if not own.exists():
+        music.unlink(missing_ok=True)
     if r.returncode != 0:
         print("video failed:", r.stderr[-300:])
     return r.returncode == 0
