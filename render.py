@@ -13,6 +13,8 @@ import csv
 import hashlib
 import io
 import re
+import shutil
+import subprocess
 import sys
 import urllib.request
 from pathlib import Path
@@ -153,7 +155,33 @@ def render_post(text, key, out_dir):
             sc = scene(fmt, w, h, pose, dx)
             img = mc.render(slides, fmt, w, h, i, n, scene=sc)
             img.save(d / f"{prefix}_{i}.jpg", "JPEG", quality=88, subsampling=0, optimize=True)
+    make_video(d, slides)
     return n
+
+
+def make_video(d, slides):
+    """Ролик 1080x1920 зі слайдів tt_N.jpg: плавні переходи, тривалість слайда залежить від довжини тексту, тиха аудіодоріжка."""
+    if not shutil.which("ffmpeg"):
+        return False
+    xf = 0.4
+    durs = [max(3.5, min(7.0, 1.2 + 0.3 * len(s.split()))) for s in slides]
+    cmd = ["ffmpeg", "-y", "-loglevel", "error"]
+    for i, dur in enumerate(durs, 1):
+        cmd += ["-loop", "1", "-t", f"{dur + xf:.2f}", "-framerate", "25", "-i", str(d / f"tt_{i}.jpg")]
+    cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
+    parts = [f"[{i}:v]setsar=1,format=yuv420p[v{i}]" for i in range(len(durs))]
+    last, acc = "v0", durs[0]
+    for i in range(1, len(durs)):
+        parts.append(f"[{last}][v{i}]xfade=transition=fade:duration={xf}:offset={acc:.2f}[x{i}]")
+        last, acc = f"x{i}", acc + durs[i]
+    total = acc + xf
+    cmd += ["-filter_complex", ";".join(parts), "-map", f"[{last}]", "-map", f"{len(durs)}:a",
+            "-t", f"{total:.2f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "25", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "64k", "-shortest", "-movflags", "+faststart", str(d / "tt_video.mp4")]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print("video failed:", r.stderr[-300:])
+    return r.returncode == 0
 
 
 def load_rows(src):
