@@ -12,6 +12,7 @@ GitHub Pages публікує папку site/. Використання:
 import csv
 import hashlib
 import io
+import os
 import re
 import shutil
 import subprocess
@@ -27,6 +28,16 @@ import carousel_core as mc
 ROOT = Path(__file__).resolve().parent
 ACTIVE = {"queued", "ad"}
 SLIDES = 4
+
+# Ролики-пояснення для рекламних постів (анімований екран + голос). Вмикаються файлом explainer_on.txt у корені.
+EX = None
+EX_STATE = {"ok": False}                              # чи працює голос (перевіряється один раз за запуск)
+EX_BUDGET = {"left": int(os.environ.get("EX_MAX", "8"))}  # скільки нових роликів рендерити за один запуск
+if (ROOT / "explainer_on.txt").exists():
+    try:
+        import explainer as EX
+    except Exception as e:  # без explainer усе працює як раніше
+        print("explainer unavailable:", e)
 SCALE = {"tiktok": 1.30, "instagram": 0.90}  # масштаб персонажа
 
 # ролі поз: хук / середні слайди / фінальний слайд
@@ -143,7 +154,7 @@ def pick_poses(key, n):
     return [hook] + mids + [end]
 
 
-def render_post(text, key, out_dir):
+def render_post(text, key, out_dir, ad=False):
     slides = split_slides(text)
     n = len(slides)
     poses = pick_poses(key, n)
@@ -157,6 +168,11 @@ def render_post(text, key, out_dir):
             img.save(d / f"{prefix}_{i}.jpg", "JPEG", quality=88, subsampling=0, optimize=True)
     (d / "caption.txt").write_text(make_caption(text), encoding="utf-8")
     make_video(d, slides, key)
+    if ad and EX is not None:  # рекламний пост: замінюємо tt_video.mp4 роликом-поясненням (якщо для тексту є сценарій)
+        try:
+            EX.make(text, key, d, make_music, EX_STATE, EX_BUDGET)
+        except Exception as e:
+            print("explainer failed:", type(e).__name__, str(e)[:200])
     return n
 
 
@@ -319,6 +335,9 @@ def main():
     (out / ".nojekyll").write_text("")
     (out / "index.html").write_text("<!doctype html><meta charset=utf-8><title>vPixselle carousels</title>")
     rows = load_rows(src)
+    if EX is not None and any((r.get("status") or "").strip().lower() == "ad" for r in rows):
+        EX_STATE["ok"] = bool(EX.probe_voice())
+        print("explainer voice:", "ok" if EX_STATE["ok"] else "none (ролики будуть без голосу)")
     done, seen = 0, set()
     for r in rows:
         status = (r.get("status") or "").strip().lower()
@@ -329,7 +348,7 @@ def main():
         if key in seen:
             continue
         seen.add(key)
-        render_post(text, key, out)
+        render_post(text, key, out, ad=(status == "ad"))
         done += 1
     extra = ROOT / "test_posts.txt"  # разові тестові тексти, розділені рядком =====
     if extra.exists():
