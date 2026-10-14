@@ -75,7 +75,7 @@ def plain(s):
 # Як озвучувати латинські назви (голос читає їх по-українськи, тож підказуємо вимову)
 SPEAK = [("Google Shopping", "Гугл Шопінг"), ("Google", "Гугл"), ("Prom", "Пром"), ("Rozetka", "Розетка"),
          ("Horoshop", "Хорошоп"), ("Allegro", "Алегро"), ("Instagram", "Інстаграм"), ("Telegram", "Телеграм"),
-         ("Viber", "Вайбер"), ("Make", "Мейк"), ("CRM", "сі-ар-ем"), ("SEO", "сео"), ("AI", "ШІ"),
+         ("Viber", "Вайбер"), ("Email", "імейл"), ("email", "імейл"), ("Make", "Мейк"), ("CRM", "сі-ар-ем"), ("SEO", "сео"), ("AI", "ШІ"),
          ("API", "ей-пі-ай"), ("→", " у "), ("грн", "гривень")]
 
 
@@ -159,7 +159,11 @@ def clamp_refs(obj, last_body):
 
 def plan(spec, workdir, ff, use_voice=True):
     """Повертає (lines, timeline, voice_files|None, total_seconds)."""
-    lines = list(spec["lines"]) + [CTA_LINE]
+    cta = spec.get("cta") or {}
+    cta_line = CTA_LINE
+    if cta.get("key"):  # заклик із кодовим словом з тексту реклами
+        cta_line = f"Хочеш так само? Напиши слово «{cta.get('say') or cta['key']}» у приватні повідомлення."
+    lines = list(spec["lines"]) + [cta_line]
     clamp_refs(spec["cfg"], len(lines) - 2)
     files, durs = [], []
     if use_voice:
@@ -227,7 +231,7 @@ def launch(p):
 
 def capture(cfg, lines, tl, total, audio, out_mp4, ff, frames_dir=None, frame_times=None):
     from playwright.sync_api import sync_playwright
-    spec_cfg = {"scene": cfg["scene"], "cfg": cfg["cfg"], "title": cfg.get("title"), "lines": lines}
+    spec_cfg = {"scene": cfg["scene"], "cfg": cfg["cfg"], "title": cfg.get("title"), "lines": lines, "cta": cfg.get("cta")}
     n = int(total * FPS)
     cmd = [ff, "-y", "-loglevel", "error", "-f", "image2pipe", "-vcodec", "mjpeg", "-framerate", str(FPS), "-i", "-"]
     if audio:

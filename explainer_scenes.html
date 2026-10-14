@@ -150,7 +150,10 @@ function START(cfg,tl){
   CFG.lastIdx=nl-1;
   sh(elHook,accent(plain2(CFG.lines[0])));
   const b=BUILD[CFG.scene]; SCENE=b?b(CFG.cfg,elStage):null;
-  elCta.innerHTML='<div class="big">Хочете так само<br>у своєму <em>магазині</em>?</div><div class="btn">Пишіть у приватні повідомлення</div><div class="small">vPixselle · автоматизація e-commerce</div>';
+  const ck=CFG.cta&&CFG.cta.key;
+  elCta.innerHTML=ck
+    ? '<div class="big">Хочеш так само<br>у своєму <em>магазині</em>?</div><div class="btn" style="font-size:'+(ck.length>14?40:ck.length>9?46:54)+'px">Напиши «'+ck+'»</div><div class="small">у приватні повідомлення · vPixselle</div>'
+    : '<div class="big">Хочете так само<br>у своєму <em>магазині</em>?</div><div class="btn">Пишіть у приватні повідомлення</div><div class="small">vPixselle · автоматизація e-commerce</div>';
   seek(0);
 }
 function plain2(s){return s}
