@@ -38,6 +38,15 @@ if (ROOT / "explainer_on.txt").exists():
         import explainer as EX
     except Exception as e:  # без explainer усе працює як раніше
         print("explainer unavailable:", e)
+# 3D-ролики (three.js + голос) для звичайних постів. Вмикаються файлом v3d_on.txt у корені.
+V3D = None
+V3D_STATE = {"ok": False}
+V3D_BUDGET = {"left": int(os.environ.get("V3D_MAX", "3"))}  # скільки нових 3D-роликів рендерити за один запуск
+if (ROOT / "v3d_on.txt").exists():
+    try:
+        import v3d as V3D
+    except Exception as e:
+        print("v3d unavailable:", e)
 SCALE = {"tiktok": 1.30, "instagram": 0.90}  # масштаб персонажа
 
 # ролі поз: хук / середні слайди / фінальний слайд
@@ -173,6 +182,11 @@ def render_post(text, key, out_dir, ad=False):
             EX.make(text, key, d, make_music, EX_STATE, EX_BUDGET)
         except Exception as e:
             print("explainer failed:", type(e).__name__, str(e)[:200])
+    elif not ad and V3D is not None:  # звичайний пост: 3D-ролик з голосом замість відео зі слайдів
+        try:
+            V3D.make(text, key, d, make_music, V3D_STATE, V3D_BUDGET)
+        except Exception as e:
+            print("v3d failed:", type(e).__name__, str(e)[:200])
     return n
 
 
@@ -338,6 +352,9 @@ def main():
     if EX is not None and any((r.get("status") or "").strip().lower() == "ad" for r in rows):
         EX_STATE["ok"] = bool(EX.probe_voice())
         print("explainer voice:", "ok" if EX_STATE["ok"] else "none (ролики будуть без голосу)")
+    if V3D is not None and any((r.get("status") or "").strip().lower() == "queued" for r in rows):
+        V3D_STATE["ok"] = bool(V3D.probe_voice())
+        print("v3d voice:", "ok" if V3D_STATE["ok"] else "none (ролики будуть без голосу)")
     done, seen = 0, set()
     for r in rows:
         status = (r.get("status") or "").strip().lower()

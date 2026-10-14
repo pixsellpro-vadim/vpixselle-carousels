@@ -1,0 +1,380 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="node_modules/@fontsource/oswald/cyrillic-700.css">
+<link rel="stylesheet" href="node_modules/@fontsource/oswald/latin-700.css">
+<link rel="stylesheet" href="node_modules/@fontsource/exo-2/cyrillic-700.css">
+<link rel="stylesheet" href="node_modules/@fontsource/exo-2/latin-700.css">
+<link rel="stylesheet" href="node_modules/@fontsource/inter/cyrillic-500.css">
+<link rel="stylesheet" href="node_modules/@fontsource/inter/latin-500.css">
+<style>
+html,body{margin:0;background:#000;width:1080px;height:1920px;overflow:hidden}
+#gl{position:absolute;left:0;top:0;width:1080px;height:1920px}
+#vig{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 48%,rgba(0,0,0,0) 45%,rgba(0,0,0,.55) 100%)}
+#fade{position:absolute;inset:0;background:#000;opacity:0}
+.kick{position:absolute;left:0;width:1080px;top:226px;text-align:center;font:500 30px 'Inter';letter-spacing:.18em;color:#9a9aa2}
+.head{position:absolute;left:50px;width:980px;top:282px;text-align:center;font:700 60px/1.14 'Exo 2';letter-spacing:.06em;color:#f4f4f4;text-transform:uppercase}
+.head em{font-style:normal;color:#e5202f}
+.sub{position:absolute;left:40px;width:1000px;top:1350px;text-align:center;font:700 60px/1.08 'Oswald';letter-spacing:.01em;color:#fff;text-transform:uppercase;text-shadow:0 3px 0 #000,0 0 14px #000}
+.demo{position:absolute;left:44px;bottom:70px;font:500 24px 'Inter';letter-spacing:.08em;color:#8a8a92;text-transform:uppercase}
+.pill{display:none;position:absolute;left:190px;width:640px;top:1130px;text-align:center;font:700 52px 'Oswald';letter-spacing:.04em;color:#fff;background:#e5202f;border-radius:18px;padding:18px 0;text-transform:uppercase;opacity:0}
+</style></head>
+<body>
+<canvas id="gl" width="720" height="1280"></canvas>
+<div id="vig"></div>
+<div class="kick" id="kick"></div>
+<div class="head" id="head"></div>
+<div class="sub" id="sub"></div>
+<div class="pill" id="pill"></div>
+<div class="demo" id="demo"></div>
+<div id="fade"></div>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { Reflector } from './node_modules/three/examples/jsm/objects/Reflector.js';
+import { RoundedBoxGeometry } from './node_modules/three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from './node_modules/three/examples/jsm/environments/RoomEnvironment.js';
+
+const RS = window.__RS || 1.0; const W = Math.round(720 * RS), H = Math.round(1280 * RS);
+const canvas = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true }); window.__renderer = renderer;
+renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); window.__scene = scene;
+scene.background = new THREE.Color(0x000000);
+scene.fog = new THREE.Fog(0x000000, 10, 24);
+const camera = new THREE.PerspectiveCamera(35, W / H, 0.1, 60);
+const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+const ambient = new THREE.HemisphereLight(0xdfe6ff, 0x1a1a22, 0.35); scene.add(ambient);
+const key = new THREE.DirectionalLight(0xfff1e0, 2.6); key.position.set(-2.6, 4.6, 5.0); key.castShadow = true;
+key.shadow.mapSize.set(window.__SM || 2048, window.__SM || 2048); key.shadow.camera.left = -3.2; key.shadow.camera.right = 3.2; key.shadow.camera.top = 3.6; key.shadow.camera.bottom = -1.2; key.shadow.camera.near = 1; key.shadow.camera.far = 14; key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02; key.shadow.radius = 4;
+scene.add(key); scene.add(key.target); key.target.position.set(0, 0.8, 0);
+const fill = new THREE.DirectionalLight(0xb9c8ff, 0.55); fill.position.set(4, 2, 4); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xa9c0ff, 1.6); rim.position.set(3, 3.5, -4); scene.add(rim);
+const rim2 = new THREE.DirectionalLight(0xffd7b0, 0.9); rim2.position.set(-4, 3, -3); scene.add(rim2);
+
+// floor: mirror + dark gradient overlay
+const refl = new Reflector(new THREE.PlaneGeometry(60, 60), { textureWidth: 360, textureHeight: 640, color: 0x8a8a8a, clipBias: 0.003 });
+refl.rotation.x = -Math.PI / 2; refl.position.y = -0.002; scene.add(refl); window.__refl = refl; window.__key = key;
+{
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'); const gr = g.createRadialGradient(128, 128, 20, 128, 128, 128);
+  gr.addColorStop(0, 'rgba(255,255,255,0.58)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.84)'); gr.addColorStop(0.85, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,1)');
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  const ov = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, fog: false })); window.__ov = ov;
+  ov.rotation.x = -Math.PI / 2; ov.position.y = 0.002; scene.add(ov);
+}
+const catcher = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.55 })); catcher.rotation.x = -Math.PI / 2; catcher.position.y = 0.004; catcher.receiveShadow = true; scene.add(catcher);
+const world = new THREE.Group(); scene.add(world);
+
+// ---------- helpers ----------
+const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: o.r ?? 0.55, metalness: o.m ?? 0, emissive: o.e ?? 0x000000, emissiveIntensity: o.ei ?? 1, transparent: !!o.t, opacity: o.o ?? 1 });
+const ease = u => u < 0 ? 0 : u > 1 ? 1 : u * u * (3 - 2 * u);
+const clamp01 = u => Math.min(1, Math.max(0, u));
+const lerp = (a, b, u) => a + (b - a) * u;
+const seg = (t, a, b) => clamp01((t - a) / (b - a));
+
+import { ENV, POSE0, P, POSES, mix, walkPose, makeHuman } from './human.js';
+const makeFigure = (kind = 'vadim', tint = null, scale = 1) => makeHuman(world, kind, tint, scale);
+
+// ---------- props ----------
+function box(w, h, d, c, o = {}) { const m = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 2, Math.min(w, h, d) * 0.12), M(c, o)); world.add(m); return m; }
+function crateStack(x, z, rows = 3) {
+  const g = new THREE.Group(); const cols = [0x8f947c, 0x80856e, 0x989d84];
+  for (let r = 0; r < rows; r++) { const n = rows - r + 1; for (let i = 0; i < n; i++) {
+    const b = new THREE.Mesh(new RoundedBoxGeometry(0.46, 0.13, 0.3, 2, 0.02), M(cols[(i + r) % 3], { r: 0.7 }));
+    b.position.set((i - (n - 1) / 2) * 0.48, 0.065 + r * 0.135, 0); g.add(b);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.134, 0.304), M(0xc9c6a8, { r: 0.8 })); band.position.copy(b.position); g.add(band); } }
+  g.position.set(x, 0, z); world.add(g); g.userData.top = rows * 0.135; return g;
+}
+function bench(x, z, s = 1, ry = 0) {
+  const g = new THREE.Group(); const mt = M(0x4a4a54, { r: 0.4, m: 0.2 });
+  const seat = new THREE.Mesh(new RoundedBoxGeometry(1.15, 0.05, 0.38, 2, 0.02), mt); seat.position.set(0, 0.46, 0); g.add(seat);
+  const back = new THREE.Mesh(new RoundedBoxGeometry(1.15, 0.34, 0.04, 2, 0.015), mt); back.position.set(0, 0.74, -0.17); back.rotation.x = -0.08; g.add(back);
+  for (const sx of [-0.5, 0.5]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.46, 0.34), mt); l.position.set(sx, 0.23, 0); g.add(l); }
+  g.scale.setScalar(s); g.position.set(x, 0, z); g.rotation.y = ry; world.add(g); return g;
+}
+function platform(x, z, w, d, h, c = 0x3a3a42) { const m = box(w, h, d, c, { r: 0.35, m: 0.2 }); m.position.set(x, h / 2, z); return m; }
+function bubble(text, o = {}) {
+  const w = o.w ?? 420, h = o.h ?? 300; const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
+  const bg = o.bg ?? '#f4f4f4', fg = o.fg ?? '#101010';
+  g.fillStyle = bg; const r = 46, bh = h - 54;
+  g.beginPath(); g.moveTo(r, 0); g.arcTo(w, 0, w, bh, r); g.arcTo(w, bh, 0, bh, r); g.arcTo(0, bh, 0, 0, r); g.arcTo(0, 0, w, 0, r); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(w * 0.22, bh - 2); g.lineTo(w * 0.16, h - 4); g.lineTo(w * 0.36, bh - 2); g.closePath(); g.fill();
+  g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle'; const fs = o.fs ?? 190; g.font = `700 ${fs}px Oswald, 'DejaVu Sans', sans-serif`;
+  g.fillText(text, w / 2, bh / 2 + 8, w - 40);
+  if (o.cross) { g.strokeStyle = '#e5202f'; g.lineWidth = 22; g.lineCap = 'round'; g.beginPath(); g.moveTo(40, 30); g.lineTo(w - 40, bh - 30); g.moveTo(w - 40, 30); g.lineTo(40, bh - 30); g.stroke(); }
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const sc = o.s ?? 0.7;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(sc, sc * h / w), new THREE.MeshBasicMaterial({ map: tex, transparent: true, fog: false, depthWrite: false }));
+  m.renderOrder = 10; world.add(m); m.userData.bb = true; return m;
+}
+function clock(x, y, z, s = 1) {
+  const g = new THREE.Group();
+  const face = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.06, 48), M(0x16161a, { r: 0.4 })); face.rotation.x = Math.PI / 2; g.add(face);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.035, 12, 48), M(0xf2f2f2, { r: 0.3, m: 0.3 })); g.add(ring);
+  for (let i = 0; i < 12; i++) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.03, i % 3 ? 0.07 : 0.12, 0.02), M(0xdddddd)); const a = i / 12 * Math.PI * 2; t.position.set(Math.sin(a) * 0.42, Math.cos(a) * 0.42, 0.04); t.rotation.z = -a; g.add(t); }
+  const hh = new THREE.Group(), mh = new THREE.Group(); g.add(hh); g.add(mh);
+  const hb = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.26, 0.02), M(0xffffff, { e: 0x333333 })); hb.position.y = 0.13; hb.position.z = 0.05; hh.add(hb);
+  const mb = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.38, 0.02), M(0xe5202f, { e: 0x440000 })); mb.position.y = 0.19; mb.position.z = 0.06; mh.add(mb);
+  g.position.set(x, y, z); g.scale.setScalar(s); world.add(g);
+  g.userData.setTime = (hours) => { hh.rotation.z = -(hours % 12) / 12 * Math.PI * 2; mh.rotation.z = -(hours % 1) * Math.PI * 2; };
+  return g;
+}
+function cloud(x, y, z) {
+  const g = new THREE.Group(); const cm = M(0x55565f, { r: 0.9 });
+  [[-0.35, 0, 0.28], [0, 0.12, 0.36], [0.38, 0, 0.3], [0.1, -0.05, 0.3], [-0.12, 0.02, 0.32]].forEach(([a, b, r]) => { const s = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), cm); s.position.set(a, b, 0); g.add(s); });
+  const drops = []; const dm = M(0xaab4c8, { e: 0x445566 });
+  for (let i = 0; i < 34; i++) { const d = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.12, 4), dm); g.add(d); drops.push({ d, x: (Math.sin(i * 12.9898) * 0.5) * 0.9, ph: (i * 0.6180339) % 1 }); }
+  g.position.set(x, y, z); world.add(g);
+  g.userData.update = (t) => { drops.forEach(o => { const f = (t * 0.9 + o.ph) % 1; o.d.position.set(o.x, -0.2 - f * 1.1, 0.1 * Math.sin(o.ph * 20)); o.d.material.opacity = 1; }); };
+  return g;
+}
+function robot(x, z, s = 1) {
+  const g = new THREE.Group(); const bm = M(0xdadada, { r: 0.45 }), dm = M(0x2a2a31, { r: 0.4 });
+  const body = new THREE.Mesh(new RoundedBoxGeometry(0.5, 0.55, 0.36, 4, 0.1), bm); body.position.y = 0.55; g.add(body);
+  const head = new THREE.Mesh(new RoundedBoxGeometry(0.46, 0.34, 0.34, 4, 0.1), bm); head.position.y = 1.07; g.add(head);
+  const visor = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.15), dm); visor.position.set(0, 1.08, 0.175); g.add(visor);
+  const eyeM = M(0x66e0ff, { e: 0x66e0ff, ei: 1.5 });
+  const e1 = new THREE.Mesh(new THREE.CircleGeometry(0.035, 12), eyeM); e1.position.set(-0.08, 1.08, 0.178); g.add(e1);
+  const e2 = e1.clone(); e2.position.x = 0.08; g.add(e2);
+  const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 8), bm); ant.position.y = 1.32; g.add(ant);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), M(0xe5202f, { e: 0xe5202f, ei: 1.2 })); tip.position.y = 1.42; g.add(tip);
+  for (const sx of [-1, 1]) { const l = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.22, 4, 10), dm); l.position.set(sx * 0.12, 0.14, 0); g.add(l); const a = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.3, 4, 10), bm); a.position.set(sx * 0.33, 0.55, 0); g.add(a); }
+  g.scale.setScalar(s); g.position.set(x, 0, z); world.add(g); g.userData.head = head; return g;
+}
+function moon(x, y, z) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.34, 32, 24), M(0xf3f1e8, { e: 0xf3f1e8, ei: 0.9 })); m.position.set(x, y, z); world.add(m); return m; }
+
+// ---------- chapters ----------
+const arc = (a, b, u, h) => [lerp(a[0], b[0], u), lerp(a[1], b[1], u) + Math.sin(u * Math.PI) * h, lerp(a[2], b[2], u)];
+const BASE = { cam: [0, 1.5, 7.9], look: [0, 0.96, 0] };
+function panel(w, h, sz, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(sz, sz * h / w), new THREE.MeshBasicMaterial({ map: tex, transparent: true, fog: false, depthWrite: false })); m.renderOrder = 10; world.add(m); m.userData.bb = true;
+  m.userData.redraw = (t) => { g.clearRect(0, 0, w, h); draw(g, w, h, t); tex.needsUpdate = true; }; m.userData.redraw(0); return m; }
+const SCENES = {
+  card: { // картка клієнта: що питав / вибирав / вагався
+    setup(C) { C.V = makeFigure('vadim'); C.G = makeFigure('gray', 0x9b9ba3, 0.97);
+      C.card = panel(420, 340, 1.25, (g, w, h, t) => {
+        g.fillStyle = '#f4f4f4'; g.beginPath(); g.roundRect(0, 0, w, h, 34); g.fill();
+        g.fillStyle = '#9b9ba3'; g.beginPath(); g.arc(80, 78, 44, 0, 7); g.fill();
+        g.fillStyle = '#d0d0d6'; g.fillRect(148, 52, 200, 20); g.fillRect(148, 88, 130, 14);
+        ['ПИТАВ', 'ВИБИРАВ', 'ВАГАВСЯ'].forEach((r, i) => { const a = ease(seg(t, 0.7 + i * 0.9, 1.1 + i * 0.9)); g.globalAlpha = a; g.fillStyle = '#101010'; g.font = "700 50px Oswald, 'DejaVu Sans', sans-serif"; g.textAlign = 'left'; g.fillText(r, 36, 190 + i * 62); g.fillStyle = '#e5202f'; g.fillText('✓', w - 92, 190 + i * 62); });
+        g.globalAlpha = 1; }); },
+    update(C, t, d) {
+      C.V.set(mix(POSES.stand, POSES.explain, ease(seg(t, 0.3, 1.0))), -0.95, 0, 0.05); C.V.root.rotation.y = 0.35;
+      const a = ease(seg(t, 0.1, 0.5)); C.card.visible = a > 0; C.card.userData.redraw(t); C.card.scale.setScalar(Math.max(0.001, a)); C.card.position.set(0.35, 1.7, 0.3);
+      C.G.set({ ...POSES.stand, ry: -0.6, hx: Math.sin(t * 4) * 0.1 * ease(seg(t, 2.8, 3.2)) }, 1.15, 0, -0.1);
+      C.G.tint(new THREE.Color(0x9b9ba3).lerp(new THREE.Color(0xf2f2f2), ease(seg(t, 3.0, 4.2))));
+      return { cam: [0, 1.4, lerp(8.0, 7.5, t / d)] }; } },
+  remind: { // нагадування, коли товар закінчується
+    setup(C) {
+      C.V = makeFigure('vadim', null, 0.95); C.G = makeFigure('gray', 0xb4b4bc, 0.97); C.G.phone(true);
+      const jar = new THREE.Group(); const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.46, 28, 1, true), M(0xcfd8e6, { t: true, o: 0.2, r: 0.1 })); glass.position.y = 0.23; jar.add(glass);
+      C.fill = new THREE.Mesh(new THREE.CylinderGeometry(0.185, 0.185, 0.4, 28), M(0x8f947c, { r: 0.7 })); jar.add(C.fill);
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.06, 28), M(0x2a2a31, { r: 0.4 })); lid.position.y = 0.49; jar.add(lid);
+      jar.position.set(-0.35, 0, 0.3); world.add(jar); C.jar = jar;
+      C.bell = bubble('!', { s: 0.46, bg: '#e5202f', fg: '#fff', fs: 210 }); C.ok = bubble('✓', { s: 0.5, bg: '#e5202f', fg: '#fff' }); C.lvl = bubble('0%', { s: 0.42, fs: 150 }); },
+    update(C, t, d) {
+      const k = ease(seg(t, 0.4, 2.4)); const sy = Math.max(0.03, 1 - 0.97 * k); C.fill.scale.y = sy; C.fill.position.y = 0.03 + 0.2 * sy;
+      C.V.set(mix(POSES.stand, POSES.point, ease(seg(t, 0.3, 1.0)) * 0.7), -0.95, 0, 0.1); C.V.root.rotation.y = 0.6;
+      C.G.set({ ...mix(POSES.phone, { ...POSES.phone, hy: 0.4 }, 0.5 + 0.5 * Math.sin(t * 2)), ry: -0.45 }, 0.5, 0, 0.1);
+      const f = seg(t, 2.5, 3.3); C.bell.visible = f > 0 && f < 1; if (C.bell.visible) C.bell.position.set(...arc([-0.35, 0.8, 0.3], [0.5, 1.85, 0.2], f, 0.5));
+      const a = ease(seg(t, 3.3, 3.7)); C.ok.visible = a > 0; C.ok.scale.setScalar(Math.max(0.001, a)); C.ok.position.set(0.5, 2.0, 0.2);
+      C.G.tint(new THREE.Color(0x9b9ba3).lerp(new THREE.Color(0xf2f2f2), ease(seg(t, 3.3, 4.4))));
+      C.lvl.visible = k > 0.7; C.lvl.position.set(-0.35, 0.95, 0.3);
+      return { cam: [0, 1.4, lerp(8.0, 7.6, t / d)] }; } },
+  signs: { // три ознаки: клієнти по черзі відвертаються
+    setup(C) { C.F = [0, 1, 2].map(() => makeFigure('gray', 0xb4b4bc, 0.97)); C.b = [0, 1, 2].map(i => bubble(String(i + 1), { s: 0.5, bg: '#e5202f', fg: '#fff', fs: 210 })); C.V = makeFigure('vadim', null, 0.95); },
+    update(C, t, d) {
+      const xs = [-0.2, 0.45, 1.05], zs = [0.0, -0.45, -0.9];
+      C.F.forEach((f, i) => { const away = ease(seg(t, 1.5 + i * 0.9, 2.2 + i * 0.9)); f.set({ ...POSES.stand, ry: Math.PI * away * 0.85, hy: 0.3 * (1 - away) }, xs[i], 0, zs[i]);
+        const a = ease(seg(t, 0.3 + i * 0.9, 0.7 + i * 0.9)); C.b[i].visible = a > 0; C.b[i].scale.setScalar(Math.max(0.001, a)); C.b[i].position.set(xs[i], 2.05, zs[i] + 0.2); });
+      C.V.set(mix(POSES.stand, POSES.shrug, ease(seg(t, 0.2, 0.9))), -0.85, 0, 0.0); C.V.root.rotation.y = 0.5;
+      return { cam: [0, 1.4, lerp(8.2, 7.7, t / d)] }; } },
+  same: { // однакова розсилка для всіх
+    setup(C) { C.V = makeFigure('vadim', null, 0.95); C.F = [0, 1, 2, 3].map(() => makeFigure('gray', 0xb4b4bc, 0.96)); C.m = [0, 1, 2, 3].map(() => bubble('✉', { s: 0.38, bg: '#e5202f', fg: '#fff', fs: 200 })); },
+    update(C, t, d) {
+      C.V.set(mix(POSES.stand, POSES.point, ease(seg(t, 0.2, 0.8))), -1.02, 0, 0.1); C.V.root.rotation.y = 0.55;
+      const xs = [-0.25, 0.3, 0.85, 1.35];
+      C.F.forEach((f, i) => f.set({ ...POSES.stand, ry: -0.4, hy: 0.25 }, xs[i], 0, -0.06 * i));
+      C.m.forEach((b, i) => { const f = seg(t, 0.5 + i * 0.4, 1.2 + i * 0.4); b.visible = f > 0; b.position.set(...arc([-0.9, 1.6, 0.3], [xs[i], 2.0, 0.1], f, 0.3)); b.scale.setScalar(Math.max(0.001, f > 0 ? 0.8 + 0.2 * f : 0.001)); });
+      return { cam: [0.05, 1.4, lerp(8.2, 7.8, t / d)] }; } },
+  silent: { // клієнт мовчить / чекає без відповіді
+    setup(C) { C.bn = bench(0.1, 0, 1.0); C.G = makeFigure('gray', 0xb4b4bc, 1.0); C.G.phone(true); C.ck = clock(-0.8, 1.85, -0.8, 0.55); C.b = bubble('…', { s: 0.5 }); },
+    update(C, t, d) {
+      C.G.set(mix(POSES.waitSit, { ...POSES.waitSit, hx: 0.7 }, 0.5 + 0.5 * Math.sin(t * 1.4)), 0.1, 0, 0.05);
+      C.ck.userData.setTime(9 + t * 1.3); const a = ease(seg(t, 0.4, 0.8)); C.b.visible = a > 0; C.b.scale.setScalar(Math.max(0.001, a * (1 + 0.05 * Math.sin(t * 3)))); C.b.position.set(0.35, 1.9, 0.3);
+      return { cam: [0, 1.4, lerp(8.0, 7.6, t / d)], night: 0.3 }; } },
+  think: { // загальна сцена: герой пояснює, великий акцент-бабл зі словом
+    setup(C, a) { const w = (a.word || '!').toUpperCase(); C.V = makeFigure('vadim', null, 1.0); C.b = bubble(w, { s: 0.78, bg: '#e5202f', fg: '#fff', fs: w.length > 7 ? 120 : w.length > 4 ? 160 : 210, w: 520 }); },
+    update(C, t, d) {
+      C.V.set(mix(POSES.explain, POSES.point, 0.5 + 0.5 * Math.sin(t * 1.1)), -0.35, 0, 0.1); C.V.root.rotation.y = 0.25;
+      const a = ease(seg(t, 0.4, 0.9)); C.b.visible = a > 0; C.b.scale.setScalar(Math.max(0.001, a * (1 + 0.03 * Math.sin(t * 4)))); C.b.position.set(0.5, 2.0, 0.4);
+      return { cam: [0, 1.4, lerp(8.0, 7.4, t / d)] }; } },
+
+  tst: { setup(C) { C.V = makeFigure('vadim'); },
+    update(C, t, d) { const w = ease(seg(t, 0.4, 1.4)); C.V.set(mix(POSES.stand, POSES.explain, w), 0, 0, 0); ENV.mouth = 0.5 + 0.5 * Math.sin(t * 9);
+      const mode = (window.__TST || 'full');
+      if (mode === 'head') return { cam: [0.25, 1.62, 1.35], camY: 1.62, look: [0, 1.6, 0] };
+      if (mode === 'med') return { cam: [0.0, 1.4, 3.6], camY: 1.3, look: [0, 1.15, 0] };
+      if (mode === 'hero') return { cam: [0.3, 1.4, 5.2], camY: 1.35, look: [0, 1.05, 0] };
+      return { cam: [0, 1.4, 7.9] }; } },
+  s1: { // hero on goods, customer walks away
+    setup(C) { C.cr = crateStack(0, 0, 3); C.V = makeFigure('vadim'); C.G = makeFigure('gray', 0x9b9ba3, 0.97); },
+    update(C, t, d) {
+      const u = t / d, top = C.cr.userData.top;
+      const p = mix(mix(POSES.stand, POSES.shrug, ease(seg(t, 0.4, 1.4))), POSES.point, ease(seg(t, 3.0, 3.8)) * 0.0);
+      C.V.set(p, 0, top, 0);
+      const gx = lerp(1.3, -1.9, ease(seg(t, 1.2, d - 0.1)));
+      C.G.set({ ...walkPose(t * 5.2, POSES.stand), ry: -Math.PI / 2 }, gx, 0, 0.9);
+      return { cam: [lerp(0.2, -0.1, u), 1.4, lerp(8.2, 7.5, u)] };
+    } },
+  s2: { // customer waits, bubbles
+    setup(C) { C.G = makeFigure('gray', 0xb4b4bc, 1.0); C.G.phone(true); C.b = [0, 1, 2].map(() => bubble('?', { s: 0.5 })); },
+    update(C, t, d) {
+      C.G.set(mix(POSES.phone, { ...POSES.phone, hy: 0.5 }, 0.5 + 0.5 * Math.sin(t * 2.2)), -0.2, 0, 0);
+      C.b.forEach((b, i) => { const a = ease(seg(t, 0.4 + i * 0.9, 0.8 + i * 0.9)); b.visible = a > 0; b.scale.setScalar(a * (1 + 0.04 * Math.sin(t * 5 + i))); b.position.set(-0.2 + (i - 1) * 0.72, 2.3 - 0.18 * (i === 1 ? 0 : 1), 0); });
+      return { cam: [0.0, 1.4, lerp(8.0, 7.4, t / d)] };
+    } },
+  s3: { // night: owner asleep, customer asks
+    setup(C) {
+      C.bn = bench(-0.55, 0, 1.0); C.V = makeFigure('vadim'); C.G = makeFigure('gray', 0xb4b4bc, 1.0); C.mn = moon(-0.15, 2.3, -3.2);
+      C.ck = clock(-1.0, 1.95, -0.6, 0.62); C.G.phone(true); C.ck.userData.setTime(22); C.ck.visible = false; C.q = bubble('?', { s: 0.6 });
+      C.z = [0, 1, 2].map(() => bubble('Z', { s: 0.34, bg: '#2b2b33', fg: '#d8d8de', fs: 200 }));
+      C.sc = 0; },
+    update(C, t, d) {
+      C.V.set(mix(POSES.sit, POSES.sleep, ease(seg(t, 0.3, 1.2))), -0.55, 0, 0.02);
+      C.G.set({ ...mix(POSES.phone, { ...POSES.phone, hx: 0.5 }, 0.5 + 0.5 * Math.sin(t * 2)), ry: -0.5 }, 0.95, 0, 0.3);
+      const a = ease(seg(t, 0.6, 1.0)); C.q.visible = a > 0; C.q.scale.setScalar(a); C.q.position.set(0.95, 2.2 + 0.04 * Math.sin(t * 3), 0.3);
+      C.z.forEach((z, i) => { const f = ((t * 0.5 + i / 3) % 1); z.position.set(-0.3 + f * 0.3, 1.45 + f * 0.5, 0.2); z.scale.setScalar(0.7 + f * 0.6); });
+      return { cam: [lerp(-0.15, 0.15, t / d), 1.4, 7.9], night: 1 };
+    } },
+  s4: { // time passes, customer waits under a cloud
+    setup(C) {
+      C.bn = bench(-0.9, 0, 1.0); C.V = makeFigure('vadim'); C.b2 = bench(0.8, 0, 0.7); C.G = makeFigure('gray', 0xb4b4bc, 1.0);
+      C.ck = clock(-0.1, 2.0, -0.8, 0.8); C.cl = cloud(0.8, 1.95, 0.1); },
+    update(C, t, d) {
+      const hr = 22 + 10 * ease(seg(t, 0.2, 3.0)); C.ck.userData.setTime(hr);
+      const wake = ease(seg(t, 3.0, 3.9));
+      C.V.set(mix(POSES.sleep, POSES.stand, wake), lerp(-0.9, -0.9, wake), 0, 0.02 + wake * 0.2);
+      C.G.set(mix(POSES.waitSit, { ...POSES.waitSit, hx: 0.65 }, 0.5 + 0.5 * Math.sin(t * 1.4)), 0.8, 0, 0.05);
+      C.cl.userData.update(t);
+      return { cam: [0, 1.4, lerp(8.0, 7.6, t / d)], night: 1 - 0.5 * ease(seg(t, 1, 3)) };
+    } },
+  s5: { // customer buys from a competitor
+    setup(C) {
+      C.pl = platform(0.8, 0, 1.2, 0.8, 0.16); C.R = makeFigure('red', 0xb53a3f, 1.0); C.cr = box(0.34, 0.26, 0.28, 0x8f947c, { r: 0.7 });
+      C.V = makeFigure('vadim', null, 0.95); C.G = makeFigure('gray', 0xb4b4bc, 0.97); C.ok = bubble('✓', { s: 0.5, bg: '#e5202f', fg: '#fff' }); },
+    update(C, t, d) {
+      C.R.set(mix(POSES.stand, POSES.wave, 0.5 + 0.5 * Math.sin(t * 2.5)), 1.05, 0.16, 0);
+      const gx = lerp(-0.45, 0.5, ease(seg(t, 0.3, 2.6)));
+      const walking = seg(t, 0.3, 2.6) > 0 && seg(t, 0.3, 2.6) < 1;
+      C.G.set(walking ? { ...walkPose(t * 5.2, POSES.stand), ry: Math.PI / 2 } : { ...POSES.hold, ry: 0.5 }, gx, gx > 0.46 ? 0.16 : 0, 0.1);
+      const got = ease(seg(t, 2.9, 3.4));
+      C.cr.position.set(lerp(0.8, gx + 0.05, got), lerp(0.16 + 0.13, 1.05, got), lerp(0, 0.4, got));
+      C.V.set(mix(POSES.stand, POSES.hips, ease(seg(t, 0.2, 1.4))), -1.1, 0, 0.1);
+      C.V.root.rotation.y = 0.35;
+      const a = ease(seg(t, 3.5, 3.9)); C.ok.visible = a > 0; C.ok.scale.setScalar(a); C.ok.position.set(0.5, 2.15, 0.2);
+      return { cam: [lerp(-0.1, 0.25, t / d), 1.4, 7.9] };
+    } },
+  s6: { // not about price, not about product, about response time
+    setup(C, a) { C.V = makeFigure('vadim'); C.b1 = bubble(a.w1 || 'ЦІНА', { s: 0.64, cross: true, fs: 150 }); C.b2 = bubble(a.w2 || 'ЯКІСТЬ', { s: 0.64, cross: true, fs: 130 }); C.b3 = bubble(a.w3 || 'ЧАС', { s: 0.66, bg: '#e5202f', fg: '#fff', fs: 200 }); },
+    update(C, t, d) {
+      C.V.set({ ...mix(POSES.stand, POSES.no, ease(seg(t, 0.2, 0.8))), hy: Math.sin(t * 6) * 0.45 * (1 - ease(seg(t, 2.6, 3.0))) }, 0, 0, 0);
+      const s1 = ease(seg(t, 0.3, 0.7)), s2 = ease(seg(t, 1.2, 1.6)), s3 = ease(seg(t, 2.6, 3.1));
+      const out = 1 - ease(seg(t, 2.5, 2.9));
+      C.b1.visible = s1 * out > 0; C.b1.scale.setScalar(Math.max(0.001, s1 * out)); C.b1.position.set(-0.82, 1.6, 0.3);
+      C.b2.visible = s2 * out > 0; C.b2.scale.setScalar(Math.max(0.001, s2 * out)); C.b2.position.set(0.82, 1.6, 0.3);
+      C.b3.visible = s3 > 0; C.b3.scale.setScalar(s3 * (1 + 0.05 * Math.sin(t * 6))); C.b3.position.set(0, 2.06, 0.3);
+      return { cam: [0, 1.4, lerp(8.0, 7.6, t / d)] };
+    } },
+  s7: { // ten years: rising steps
+    setup(C, a) { C.st = []; for (let i = 0; i < 10; i++) { C.st.push(box(0.19, 1, 0.5, i === 9 ? 0xe5202f : 0x6a6a76, { r: 0.35, m: 0.2 })); } C.V = makeFigure('vadim', null, 0.92); C.tag = bubble(a.tag || '10+', { s: 0.8, bg: '#e5202f', fg: '#fff', fs: 210 }); },
+    update(C, t, d) {
+      let top = 0;
+      C.st.forEach((s, i) => { const g = ease(seg(t, 0.1 + i * 0.22, 0.5 + i * 0.22)); const h = Math.max(0.001, 0.06 * (i + 1) * g); s.scale.y = h; s.position.set(-1.25 + i * 0.2, h / 2, 0); if (i === 9) top = h; });
+      C.V.set(mix(POSES.stand, POSES.hips, ease(seg(t, 2.4, 3.2))), 0.55, top, 0.0);
+      const a = ease(seg(t, 2.6, 3.0)); C.tag.visible = a > 0; C.tag.scale.setScalar(a); C.tag.position.set(-0.55, 1.9, 0.3);
+      return { cam: [-0.1, 1.45, lerp(8.3, 7.8, t / d)] };
+    } },
+  s8: { // robot answers typical questions any hour
+    setup(C) {
+      C.bn = bench(-1.05, -0.2, 0.8); C.V = makeFigure('vadim', null, 0.9); C.R = robot(0.95, 0, 1.0); C.G = makeFigure('gray', 0xb4b4bc, 0.97);
+      C.mn = moon(1.3, 2.3, -3.0); C.G.phone(true); C.q = [0, 1, 2, 3].map(() => bubble('?', { s: 0.36 })); C.a = [0, 1, 2, 3].map(() => bubble('✓', { s: 0.36, bg: '#e5202f', fg: '#fff' })); C.ck = clock(-0.75, 2.1, -0.9, 0.5); },
+    update(C, t, d) {
+      C.V.set(POSES.sleep, -1.05, 0, -0.18);
+      C.G.set({ ...POSES.phone, ry: 0.3 }, -0.15, 0, 0.1);
+      C.R.userData.head.rotation.z = Math.sin(t * 3) * 0.08;
+      C.ck.userData.setTime(22 + t * 2.4);
+      C.q.forEach((b, i) => { const f = ((t - 0.4 - i * 1.0) / 0.9); const on = f > 0 && f < 1; b.visible = on; if (on) { const p = arc([-0.15, 1.75, 0.2], [0.95, 1.45, 0.2], f, 0.35); b.position.set(...p); b.scale.setScalar(0.7 + 0.3 * Math.sin(f * Math.PI)); } });
+      C.a.forEach((b, i) => { const f = ((t - 0.95 - i * 1.0) / 0.5); const on = f > 0 && f < 1.0; b.visible = on; if (on) { const p = arc([0.95, 1.45, 0.2], [-0.15, 1.8, 0.2], f, 0.2); b.position.set(...p); } });
+      return { cam: [lerp(-0.05, 0.1, t / d), 1.4, 8.0], night: 1 };
+    } },
+  s9: { // complex question goes to the owner
+    setup(C) { C.V = makeFigure('vadim'); C.R = robot(-0.95, 0.1, 1.0); C.G = makeFigure('gray', 0xb4b4bc, 0.97); C.G.phone(true); C.b = bubble('!', { s: 0.5, bg: '#e5202f', fg: '#fff' }); C.ok = bubble('✓', { s: 0.5 }); },
+    update(C, t, d) {
+      const f = seg(t, 0.5, 2.0), c = ease(seg(t, 2.0, 2.4));
+      C.G.set({ ...POSES.phone, ry: -0.4 }, -0.1, 0, 0.0);
+      C.R.userData.head.rotation.z = Math.sin(t * 3) * 0.08;
+      C.V.set(mix(mix(POSES.stand, POSES.hold, ease(seg(t, 1.2, 2.2))), POSES.stand, c * 0.6), 1.05, 0, 0.0); C.V.root.rotation.y = -0.4;
+      const p = arc([-0.95, 1.5, 0.2], [0.95, 1.5, 0.45], f, 0.55); C.b.position.set(...p); C.b.visible = f < 1 && t > 0.5; C.b.scale.setScalar(0.8 + 0.2 * Math.sin(t * 6));
+      const a = ease(seg(t, 2.2, 2.6)); C.ok.visible = a > 0; C.ok.scale.setScalar(a); C.ok.position.set(1.05, 2.35, 0.2);
+      return { cam: [0, 1.4, lerp(8.0, 7.6, t / d)] };
+    } },
+  s10: { // customer stays
+    setup(C) { C.pl = platform(0, 0, 2.6, 1.0, 0.1); C.cr = crateStack(0.0, -0.1, 3); C.V = makeFigure('vadim', null, 0.95); C.G = makeFigure('gray', 0xb4b4bc, 0.97); C.ok = bubble('✓', { s: 0.5, bg: '#e5202f', fg: '#fff' }); },
+    update(C, t, d) {
+      const w = ease(seg(t, 0.4, 1.4));
+      C.cr.scale.setScalar(0.3 + 0.7 * ease(seg(t, 0.2, 1.6))); C.cr.position.y = 0.1;
+      C.V.set(mix(POSES.stand, POSES.point, ease(seg(t, 0.4, 1.2))), -0.75, 0.1, 0.25); C.V.root.rotation.y = 0.5;
+      const nod = Math.sin(t * 5) * 0.12 * ease(seg(t, 1.2, 1.6));
+      C.G.set({ ...POSES.stand, hx: nod, ry: -0.55 }, 0.75, 0.1, 0.25); C.G.tint(new THREE.Color(0x9b9ba3).lerp(new THREE.Color(0xf2f2f2), ease(seg(t, 1.0, 2.2))));
+      const a = ease(seg(t, 2.0, 2.4)); C.ok.visible = a > 0; C.ok.scale.setScalar(a); C.ok.position.set(0.75, 2.1, 0.3);
+      return { cam: [0, 1.4, lerp(8.0, 7.5, t / d)] };
+    } },
+  s11: { // CTA: crowd comes, DM bubble
+    setup(C, a) { C.V = makeFigure('vadim', null, 1.0); C.cr = [0, 1, 2, 3, 4].map(i => makeFigure('gray', i === 0 ? 0xf2f2f2 : 0x8e8e96, 0.95)); C.dm = bubble(a.glyph || '✉', { s: 0.62, bg: '#e5202f', fg: '#fff', fs: 210 }); },
+    update(C, t, d) {
+      const tg = [[-1.05, -0.9], [-0.55, -1.3], [0.55, -1.3], [1.0, -0.9], [0.0, -1.7]];
+      C.cr.forEach((f, i) => { const k = ease(seg(t, 0.1 + i * 0.25, 1.9 + i * 0.1)); const sx = i % 2 ? 2.2 : -2.2; const x = lerp(sx, tg[i][0], k); const arrived = k >= 1;
+        const base = arrived ? mix(POSES.stand, POSES.up, ease(seg(t, 2.2 + i * 0.12, 2.9 + i * 0.12))) : walkPose(t * 5 + i, POSES.stand);
+        f.set({ ...base, ry: arrived ? 0 : (x < tg[i][0] ? Math.PI / 2 : -Math.PI / 2) }, x, 0, tg[i][1]); });
+      C.V.set(mix(POSES.stand, POSES.wave, ease(seg(t, 0.3, 0.9))), 0, 0, 0.35);
+      C.V.J.aA.el.rotation.x = -(0.5 + 0.45 * Math.sin(t * 7)) * ease(seg(t, 0.3, 0.9));
+      const a = ease(seg(t, 1.6, 2.1)); C.dm.visible = a > 0; C.dm.scale.setScalar(a * (1 + 0.06 * Math.sin(t * 5))); C.dm.position.set(0.65, 2.0, 0.5);
+      return { cam: [0, 1.4, lerp(8.2, 7.7, t / d)], pill: ease(seg(t, 1.0, 1.5)) };
+    } },
+};
+
+// ---------- timeline / HUD ----------
+let TL = null, cur = -1, C = {};
+const elK = document.getElementById('kick'), elH = document.getElementById('head'), elS = document.getElementById('sub'), elF = document.getElementById('fade'), elP = document.getElementById('pill'), elD = document.getElementById('demo');
+function clearWorld() { while (world.children.length) { const o = world.children.pop(); o.traverse(n => { if (n.geometry) n.geometry.dispose(); }); } }
+function hl(s) { return s.replace(/\[(.+?)\]/g, '<em>$1</em>'); }
+window.loadTimeline = async (tl) => { TL = tl; await document.fonts.load("700 66px Oswald"); await document.fonts.load("700 60px 'Exo 2'"); await document.fonts.load("500 30px Inter"); await document.fonts.ready; elD.textContent = tl.demo || ''; return true; };
+window.renderAt = (t) => {
+  ENV.t = t; { const mo = TL && TL.mouth; if (mo) { const f = t * (TL.mouthFps || 25), i = Math.floor(f), u = f - i; ENV.mouth = (mo[Math.min(mo.length - 1, Math.max(0, i))] ?? 0) * (1 - u) + (mo[Math.min(mo.length - 1, Math.max(0, i + 1))] ?? 0) * u; } else ENV.mouth = 0; }
+  let acc = 0, idx = TL.chapters.length - 1, lt = 0;
+  for (let i = 0; i < TL.chapters.length; i++) { const ch = TL.chapters[i]; if (t < acc + ch.dur || i === TL.chapters.length - 1) { idx = i; lt = Math.min(t - acc, ch.dur); break; } acc += ch.dur; }
+  const ch = TL.chapters[idx];
+  if (idx !== cur) { clearWorld(); C = {}; SCENES[ch.scene].setup(C, ch.args || {}); cur = idx; elP.textContent = ''; }
+  const r = SCENES[ch.scene].update(C, lt, ch.dur) || {};
+  const cam = r.cam || BASE.cam; camera.position.set(cam[0], r.camY ?? 1.5, cam[2] * 1.02 * (window.__CAMK || 0.88)); camera.lookAt(...(r.look || BASE.look));
+  // billboards
+  world.traverse(o => { if (o.userData.bb) o.quaternion.copy(camera.quaternion); });
+  const night = r.night ?? 0; scene.background.setRGB(0.0006 + 0.0006 * night, 0.0007 + 0.0007 * night, 0.001 + 0.004 * night); scene.fog.color.copy(scene.background); window.__ov.material.color.copy(scene.background);
+  elP.style.opacity = r.pill || 0;
+  // hud
+  elK.textContent = (TL.label || '') + ' · ' + ch.kicker.toUpperCase();
+  elH.innerHTML = hl(ch.head);
+  const inA = ease(lt / 0.22); elH.style.opacity = inA; elH.style.transform = `translateY(${(1 - inA) * 14}px)`;
+  let sub = ''; let ss = 0; for (const [txt, st] of ch.chunks) { if (lt >= st) { sub = txt; ss = st; } }
+  elS.textContent = sub; const pop = ease((lt - ss) / 0.12); elS.style.transform = `scale(${0.94 + 0.06 * pop})`; elS.style.opacity = sub ? 0.35 + 0.65 * pop : 0;
+  const fadeIn = 1 - ease(lt / 0.18), fadeOut = ease((lt - (ch.dur - 0.12)) / 0.12) * (idx === TL.chapters.length - 1 ? 0 : 0);
+  elF.style.opacity = Math.max(fadeIn * 0.9, fadeOut);
+  renderer.render(scene, camera);
+  return idx;
+};
+window.__ready = true;
+</script></body></html>
