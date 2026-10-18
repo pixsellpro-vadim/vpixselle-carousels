@@ -23,11 +23,11 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 W, H, FPS = 1080, 1920, 25
-CTA_LINE = "Хочете так само у своєму магазині? Пишіть у приватні повідомлення."
-VOICE = os.environ.get("EX_VOICE", "uk-UA-PolinaNeural")
-RATE = os.environ.get("EX_RATE", "+4%")
+CTA_LINE = "Хочеш так само у своєму магазині? Пиши мені в приватні повідомлення."
+VOICE = os.environ.get("EX_VOICE", "uk-UA-OstapNeural")
+RATE = os.environ.get("EX_RATE", "+0%")
 PAGES_BASE = os.environ.get("PAGES_BASE", "https://pixsellpro-vadim.github.io/vpixselle-carousels/")
-GAP = 0.28          # пауза між фразами, с
+GAP = 0.30          # базова пауза між фразами, с (далі залежить від розділового знака)
 LEAD = 0.35         # тиша перед першою фразою, с
 TAIL = 1.0          # хвіст після останньої фрази, с
 
@@ -73,7 +73,7 @@ def plain(s):
 
 
 # Як озвучувати латинські назви (голос читає їх по-українськи, тож підказуємо вимову)
-SPEAK = [("Google Shopping", "Гугл Шопінг"), ("Google", "Гугл"), ("Prom", "Пром"), ("Rozetka", "Розетка"),
+SPEAK = [("AI-пошук", "ШІ-пошук"), ("Google Shopping", "Гугл Шопінг"), ("Google", "Гугл"), ("Prom", "Пром"), ("Rozetka", "Розетка"),
          ("Horoshop", "Хорошоп"), ("Allegro", "Алегро"), ("Instagram", "Інстаграм"), ("Telegram", "Телеграм"),
          ("Viber", "Вайбер"), ("Email", "імейл"), ("email", "імейл"), ("Make", "Мейк"), ("CRM", "сі-ар-ем"), ("SEO", "сео"), ("AI", "ШІ"),
          ("API", "ей-пі-ай"), ("→", " у "), ("грн", "гривень")]
@@ -88,12 +88,39 @@ def speak(s):
 
 # ---------------------------------------------------------------- голос
 
-def synth_azure(text, path):
+def prosody(i, n, line):
+    """Темп і тон за роллю фрази: хук — трохи вище й повільніше, питання — вище, заклик — теплий і спокійний."""
+    if i == 0:
+        return "-4%", "+3Hz"
+    if i == n - 1:
+        return "-5%", "-1Hz"
+    if line.rstrip().endswith("?"):
+        return RATE, "+2Hz"
+    if line.rstrip().endswith(":"):
+        return "-3%", "+1Hz"
+    return RATE, "+0Hz"
+
+
+def gap_after(line, last_body=False):
+    t = plain(line).rstrip()
+    g = GAP
+    if t.endswith("?"):
+        g = 0.46
+    elif t.endswith(("…", "...")):
+        g = 0.52
+    elif t.endswith(":"):
+        g = 0.26
+    if last_body:
+        g = max(g, 0.58)
+    return g
+
+
+def synth_azure(text, path, rate=None, pitch="+0Hz"):
     key, reg = os.environ.get("AZURE_SPEECH_KEY"), os.environ.get("AZURE_SPEECH_REGION")
     if not key or not reg:
         return False
     ssml = (f"<speak version='1.0' xml:lang='uk-UA'><voice name='{VOICE}'>"
-            f"<prosody rate='{RATE}'>{html.escape(text)}</prosody></voice></speak>")
+            f"<prosody rate='{rate or RATE}' pitch='{pitch}'>{html.escape(text)}</prosody></voice></speak>")
     req = urllib.request.Request(
         f"https://{reg}.tts.speech.microsoft.com/cognitiveservices/v1", data=ssml.encode("utf-8"),
         headers={"Ocp-Apim-Subscription-Key": key, "Content-Type": "application/ssml+xml",
@@ -103,21 +130,21 @@ def synth_azure(text, path):
     return Path(path).stat().st_size > 1000
 
 
-def synth_edge(text, path):
+def synth_edge(text, path, rate=None, pitch="+0Hz"):
     import asyncio
     import edge_tts
 
     async def go():
-        await edge_tts.Communicate(text, VOICE, rate=RATE).save(str(path))
+        await edge_tts.Communicate(text, VOICE, rate=rate or RATE, pitch=pitch).save(str(path))
     asyncio.run(go())
     return Path(path).exists() and Path(path).stat().st_size > 1000
 
 
-def synth(text, path):
+def synth(text, path, rate=None, pitch="+0Hz"):
     """Повертає назву провайдера або None."""
     for name, fn in (("azure", synth_azure), ("edge", synth_edge)):
         try:
-            if fn(text, path):
+            if fn(text, path, rate, pitch):
                 return name
         except Exception as e:  # немає ключа / бібліотеки / мережі
             print(f"  voice {name}: {type(e).__name__}: {str(e)[:120]}")
@@ -139,7 +166,7 @@ def audio_len(path, ff):
 
 
 def heur_len(text):
-    return max(1.8, len(plain(text)) / 14.0 + 0.45)
+    return max(1.8, len(plain(text)) / 11.5 + 0.4)
 
 
 # ---------------------------------------------------------------- таймінг
@@ -162,7 +189,7 @@ def plan(spec, workdir, ff, use_voice=True):
     cta = spec.get("cta") or {}
     cta_line = CTA_LINE
     if cta.get("key"):  # заклик із кодовим словом з тексту реклами
-        cta_line = f"Хочеш так само? Напиши слово «{cta.get('say') or cta['key']}» у приватні повідомлення."
+        cta_line = f"Хочеш так само у своєму магазині? Напиши мені в приват слово «{cta.get('say') or cta['key']}»."
     lines = list(spec["lines"]) + [cta_line]
     clamp_refs(spec["cfg"], len(lines) - 2)
     files, durs = [], []
@@ -170,7 +197,8 @@ def plan(spec, workdir, ff, use_voice=True):
         provider = None
         for i, ln in enumerate(lines):
             f = Path(workdir) / f"v{i}.mp3"
-            p = synth(speak(ln), f)
+            rt, pt = prosody(i, len(lines), ln)
+            p = synth(speak(ln), f, rt, pt)
             if not p:
                 files = []
                 break
@@ -183,9 +211,9 @@ def plan(spec, workdir, ff, use_voice=True):
         files = None
         durs = [heur_len(ln) for ln in lines]
     tl, t = [], LEAD
-    for d in durs:
+    for i, d in enumerate(durs):
         tl.append({"t0": round(t, 3), "d": round(d, 3)})
-        t += d + GAP
+        t += d + gap_after(lines[i], i == len(lines) - 2)
     total = tl[-1]["t0"] + tl[-1]["d"] + TAIL
     return lines, {"lines": tl}, files, total
 
@@ -248,6 +276,7 @@ def capture(cfg, lines, tl, total, audio, out_mp4, ff, frames_dir=None, frame_ti
         pg.goto((HERE / "explainer_scenes.html").as_uri())
         pg.evaluate("Promise.all([document.fonts.load('800 40px InterX'),document.fonts.load('600 40px InterX')])")
         pg.evaluate("([c,t])=>START(c,t)", [spec_cfg, tl])
+        pg.evaluate("window.READY")
         buf, shots = None, 0
         for i in range(n):
             t = i / FPS
