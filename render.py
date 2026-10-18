@@ -47,6 +47,15 @@ if (ROOT / "v3d_on.txt").exists():
         import v3d as V3D
     except Exception as e:
         print("v3d unavailable:", e)
+# Шаблон B «Коментатор» (Вадим на фоні екранів CRM/директу, голос, ~30 або ~60 с) для рядків reel із JSON-сценарієм від Claude (Make C1).
+KX = None
+KX_STATE = {"ok": False}
+KX_BUDGET = {"left": int(os.environ.get("KX_MAX", "3"))}  # скільки нових роликів рендерити за один запуск
+if (ROOT / "explainer_on.txt").exists() and (ROOT / "kinetic.py").exists():
+    try:
+        import kinetic as KX
+    except Exception as e:
+        print("kinetic unavailable:", e)
 SCALE = {"tiktok": 1.30, "instagram": 0.90}  # масштаб персонажа
 
 # ролі поз: хук / середні слайди / фінальний слайд
@@ -191,6 +200,12 @@ def render_reel(text, key, out_dir, caption=""):
     d = out_dir / "c" / key
     d.mkdir(parents=True, exist_ok=True)
     (d / "caption.txt").write_text(make_caption(caption or text), encoding="utf-8")
+    if KX is not None and KX.parse_simple(text):  # новий формат: JSON-сценарій -> шаблон B
+        try:
+            return bool(KX.make(text, key, d, make_music, KX_STATE, KX_BUDGET))
+        except Exception as e:
+            print("kinetic failed:", type(e).__name__, str(e)[:200])
+            return False
     if V3D is None:
         return False
     try:
@@ -362,6 +377,9 @@ def main():
     if EX is not None and any((r.get("status") or "").strip().lower() == "ad" for r in rows):
         EX_STATE["ok"] = bool(EX.probe_voice())
         print("explainer voice:", "ok" if EX_STATE["ok"] else "none (ролики будуть без голосу)")
+    if KX is not None and EX is not None and any((r.get("status") or "").strip().lower() == "reel" and KX.parse_simple(r.get("text") or "") for r in rows):
+        KX_STATE["ok"] = bool(EX.probe_voice())
+        print("kinetic voice:", "ok" if KX_STATE["ok"] else "none (ролики будуть без голосу)")
     if V3D is not None and any((r.get("status") or "").strip().lower() == "reel" for r in rows):
         V3D_STATE["ok"] = bool(V3D.probe_voice())
         print("v3d voice:", "ok" if V3D_STATE["ok"] else "none (ролики будуть без голосу)")
