@@ -38,6 +38,9 @@ body{font-family:"InterX","Inter",sans-serif;font-weight:600;color:var(--ink);po
 .slamtxt{position:absolute;left:70px;width:940px;font-weight:800;line-height:.98;text-transform:uppercase;letter-spacing:-1.5px;color:var(--ink)}
 .slamtxt div{display:block;transform-origin:0 60%}
 .slamtxt .o{color:var(--orange)}
+.covtxt{position:absolute;left:70px;width:940px;font-weight:800;line-height:1.03;letter-spacing:-1.5px;color:var(--ink)}
+.covtxt .o{color:var(--orange)}
+.covbar{position:absolute;left:70px;height:16px;width:250px;border-radius:8px;background:var(--orange)}
 .spark{position:absolute;width:46px;height:46px}
 /* punch */
 .plate{position:absolute;left:50%;top:760px;border-radius:44px;background:var(--orange);color:#fff;font-weight:800;text-align:center;line-height:1.02;
@@ -548,6 +551,21 @@ function buildSlam(text){
   const sparks=[sparkSvg(root,860,520,54),sparkSvg(root,120,1010,40),sparkSvg(root,930,980,34),sparkSvg(root,200,470,30)];
   return {root,ring,box,lines,sparks};
 }
+function buildCover(text){
+  const root=mkBeat();
+  const ring=$('div','ring',root); ring.style.cssText+=';left:250px;top:1020px;width:760px;height:760px';
+  const toks=[]; let inA=false;
+  const segs=text.split('*'); segs.forEach((seg,i)=>{ if(i>0) inA=!inA; const glue=i>0&&/^\S/.test(seg)&&/\S$/.test(segs[i-1])&&toks.length; seg.split(/\s+/).filter(Boolean).forEach((w,j)=>{ if(j===0&&glue) toks[toks.length-1].w+=w; else toks.push({w,a:inA}); }); });
+  const fit=fitText(toks.map(x=>x.w).join(' '),930,5,118,60,800,false);
+  const box=$('div','covtxt',root); box.style.fontSize=fit.fs+'px'; box.style.top='300px';
+  let wi=0;
+  fit.lines.forEach(l=>{ const n=l.split(' ').length; const ws=toks.slice(wi,wi+n); wi+=n;
+    $('div','',box,ws.map(x=>x.a?'<span class="o">'+x.w+'</span>':x.w).join(' ')); });
+  const h=fit.lines.length*fit.fs*1.03;
+  const bar=$('div','covbar',root); bar.style.top=(300+h+34)+'px';
+  const sparks=[sparkSvg(root,900,300,44),sparkSvg(root,150,1010,40),sparkSvg(root,960,980,34)];
+  return {root,box,ring,bar,sparks};
+}
 function buildPunch(text,variant){
   const root=mkBeat();
   const ring=$('div','ring',root); ring.style.cssText+=';left:90px;top:520;width:900px;height:900px;top:470px';
@@ -587,6 +605,7 @@ function START(cfg,tl){
   POSES=planPoses(nl,SEED); POSEIMG={};
   POSES.forEach(p=>{ if(!POSEIMG[p]){ const im=document.createElement('img'); im.src='ch_'+p+'.webp'; im.style.opacity='0'; elChar.appendChild(im); POSEIMG[p]=im; } });
   // біти
+  B.cover=buildCover(CFG.lines[0]);
   B.slam=buildSlam(firstAccent(CFG.lines[0])||plain(CFG.lines[0]).split(' ').slice(0,3).join(' '));
   if(HAS_PUNCH) B.punch=buildPunch(firstAccent(CFG.lines[1]),SEED%2);
   B.stageRoot=mkBeat(); const st=$('div','abs',B.stageRoot); st.id='stage'; B.stage=st;
@@ -613,6 +632,8 @@ function fxApply(el,t,ts,te,opt){
   return inP;
 }
 
+const COV_T=0.9; // обкладинка-хук: кадр 0 готовий, до COV_T тримається, далі «віп» у слем
+const CHAR_COV={x:760,h:980};
 const CHAR_ST={slam:{x:790,h:790},punch:{x:790,h:680},panel:{x:540,h:640},cta:{x:790,h:800}};
 function beatName(k){ if(k===0)return'slam'; if(k===LAST)return'cta'; if(HAS_PUNCH&&k===1)return'punch'; return'panel'; }
 function cursorAt(t,pts){ // pts: [{t,x,y}], лінійно з EIO
@@ -631,10 +652,10 @@ function seek(t){
     let act=-1;
     if(i===k){ chs.forEach((c,j)=>{ if(t>=c.start-0.06) act=j; }); }
     chs.forEach((c,j)=>{
-      const on=(j===act);
+      const on=(j===act)&&!(i===0&&t<COV_T-0.05);
       ss(c.el,'display',on?'block':'none');
       if(!on) return;
-      const p=EO(prog(t,c.start-0.06,0.22));
+      const p=EO(prog(t,Math.max(c.start,(i===0?COV_T:0))-0.06,0.22));
       ss(c.el,'opacity',f2(p)); ss(c.el,'transform','translateY('+f1((1-p)*14)+'px)');
       ss(c.el,'filter',p<1?'blur('+f1((1-p)*8)+'px)':'none');
       c.words.forEach(w=>{ const q=EO(prog(t,w.wt-0.02,0.2)); ss(w.el,'color',mix(GRAY,INK,q)); });
@@ -650,10 +671,13 @@ function seek(t){
   ss(elFog2,'transform','translate('+f1(480+40*Math.cos(t*0.45))+'px,'+f1(1000+30*Math.sin(t*0.5))+'px)');
   // ---- СЛЕМ
   const S=B.slam;
-  fxApply(S.root,t,tSlam0,tSlam1,{noIn:false,inD:0.5,dir:0});
+  const CV=B.cover;
+  fxApply(CV.root,t,-0.05,COV_T,{noIn:true,dir:0,outD:0.2});
+  if(t<COV_T+0.1){ CV.sparks.forEach((sp,i)=>{ ss(sp,'opacity',f2(0.6+0.4*Math.sin(t*3+i))); ss(sp,'transform','rotate('+f1(t*60+i*40)+'deg)'); }); ss(CV.ring,'transform','scale('+f2(1+0.02*Math.sin(t*2))+')'); }
+  fxApply(S.root,t,COV_T,tSlam1,{inD:0.5,dir:0});
   if(t<tSlam1+0.1){
-    const ts=Math.max(0.35,L0(0)+0.45);
-    const rp=EB(prog(t,0.1,0.8)); ss(S.ring,'transform','scale('+f2(0.6+0.4*rp)+')'); ss(S.ring,'opacity',f2(clamp(rp*1.4)));
+    const ts=Math.max(COV_T+0.25,L0(0)+0.45);
+    const rp=EB(prog(t,COV_T+0.05,0.8)); ss(S.ring,'transform','scale('+f2(0.6+0.4*rp)+')'); ss(S.ring,'opacity',f2(clamp(rp*1.4)));
     S.lines.forEach((ln,i)=>{
       const a=prog(t,ts+0.14*i,0.45), e=EB(a);
       ss(ln,'opacity',f2(clamp(a*1.6))); ss(ln,'transform','scale('+f2(0.72+0.28*e)+') rotate('+f1((1-e)*-3)+'deg)');
@@ -719,8 +743,9 @@ function seek(t){
   // ---- герой
   const t0k=TL.lines[k].t0, cs=CHAR_ST[beatName(k)], ps=CHAR_ST[beatName(Math.max(0,k-1))];
   const mv=EIO(prog(t,t0k-0.05,0.5));
-  const cx=k===0?cs.x:lerp(ps.x,cs.x,mv), ch=k===0?cs.h:lerp(ps.h,cs.h,mv);
-  const enter=EO(prog(t,0.05,0.7));
+  const mc=EIO(prog(t,COV_T-0.1,0.55));
+  const cx=k===0?lerp(CHAR_COV.x,cs.x,mc):lerp(ps.x,cs.x,mv), ch=k===0?lerp(CHAR_COV.h,cs.h,mc):lerp(ps.h,cs.h,mv);
+  const enter=1;
   const sw=prog(t,t0k-0.02,0.2), cur2=POSES[k];
   Object.keys(POSEIMG).forEach(name=>{
     const im=POSEIMG[name]; let o=0;
