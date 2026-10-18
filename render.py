@@ -26,7 +26,7 @@ from PIL import Image
 import carousel_core as mc
 
 ROOT = Path(__file__).resolve().parent
-ACTIVE = {"queued", "ad"}
+ACTIVE = {"queued", "ad", "reel"}  # reel: сценарій озвучки від Claude (Make C1) -> 3D-ролик для Reels/TikTok
 SLIDES = 4
 
 # Ролики-пояснення для рекламних постів (анімований екран + голос). Вмикаються файлом explainer_on.txt у корені.
@@ -182,12 +182,22 @@ def render_post(text, key, out_dir, ad=False):
             EX.make(text, key, d, make_music, EX_STATE, EX_BUDGET)
         except Exception as e:
             print("explainer failed:", type(e).__name__, str(e)[:200])
-    elif not ad and V3D is not None:  # звичайний пост: 3D-ролик з голосом замість відео зі слайдів
-        try:
-            V3D.make(text, key, d, make_music, V3D_STATE, V3D_BUDGET)
-        except Exception as e:
-            print("v3d failed:", type(e).__name__, str(e)[:200])
     return n
+
+
+def render_reel(text, key, out_dir, caption=""):
+    """Рядок reel: text = сценарій озвучки від Claude, caption = оригінальний пост (колонка caption, йде в підпис Reel/TikTok).
+    Тільки 3D-ролик з голосом (без слайдів і без запасного відео): поки ролик не готовий, tt_video.mp4 немає, і Make C2 пропускає слот."""
+    d = out_dir / "c" / key
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "caption.txt").write_text(make_caption(caption or text), encoding="utf-8")
+    if V3D is None:
+        return False
+    try:
+        return bool(V3D.make(text, key, d, make_music, V3D_STATE, V3D_BUDGET))
+    except Exception as e:
+        print("v3d failed:", type(e).__name__, str(e)[:200])
+        return False
 
 
 
@@ -352,7 +362,7 @@ def main():
     if EX is not None and any((r.get("status") or "").strip().lower() == "ad" for r in rows):
         EX_STATE["ok"] = bool(EX.probe_voice())
         print("explainer voice:", "ok" if EX_STATE["ok"] else "none (ролики будуть без голосу)")
-    if V3D is not None and any((r.get("status") or "").strip().lower() == "queued" for r in rows):
+    if V3D is not None and any((r.get("status") or "").strip().lower() == "reel" for r in rows):
         V3D_STATE["ok"] = bool(V3D.probe_voice())
         print("v3d voice:", "ok" if V3D_STATE["ok"] else "none (ролики будуть без голосу)")
     done, seen = 0, set()
@@ -365,7 +375,10 @@ def main():
         if key in seen:
             continue
         seen.add(key)
-        render_post(text, key, out, ad=(status == "ad"))
+        if status == "reel":
+            render_reel(text, key, out, (r.get("caption") or "").strip())
+        else:
+            render_post(text, key, out, ad=(status == "ad"))
         done += 1
     extra = ROOT / "test_posts.txt"  # разові тестові тексти, розділені рядком =====
     if extra.exists():
