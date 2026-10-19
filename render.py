@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.request
 from pathlib import Path
 
@@ -360,8 +361,17 @@ def make_video(d, slides, key="0" * 8):
 
 def load_rows(src):
     if re.match(r"^https?://", src):
-        req = urllib.request.Request(src, headers={"User-Agent": "Mozilla/5.0"})
-        raw = urllib.request.urlopen(req, timeout=60).read().decode("utf-8-sig")
+        raw = None
+        for attempt in range(1, 5):
+            try:
+                req = urllib.request.Request(src, headers={"User-Agent": "Mozilla/5.0"})
+                raw = urllib.request.urlopen(req, timeout=45).read().decode("utf-8-sig")
+                break
+            except Exception as e:
+                print("queue csv attempt", attempt, "failed:", repr(e)[:120])
+                if attempt == 4:
+                    raise
+                time.sleep(10 * attempt)
     else:
         raw = Path(src).read_text(encoding="utf-8-sig")
     return list(csv.DictReader(io.StringIO(raw)))
