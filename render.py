@@ -26,6 +26,12 @@ from PIL import Image
 
 import carousel_core as mc
 
+try:  # новий неоновий дизайн (темний фон + рукописний текст); якщо модуль зламаний - старий світлий дизайн
+    import neon_core as NC
+except Exception as e:  # pragma: no cover
+    print('neon_core unavailable:', type(e).__name__, str(e)[:200])
+    NC = None
+
 ROOT = Path(__file__).resolve().parent
 ACTIVE = {"queued", "ad", "reel"}  # reel: сценарій озвучки від Claude (Make C1) -> 3D-ролик для Reels/TikTok
 SLIDES = 4
@@ -176,14 +182,23 @@ def pick_poses(key, n):
 def render_post(text, key, out_dir, ad=False):
     slides = split_slides(text)
     n = len(slides)
-    poses = pick_poses(key, n)
     d = out_dir / "c" / key
     d.mkdir(parents=True, exist_ok=True)
+    neon = NC is not None
+    poses = NC.pick_poses(key, n) if neon else pick_poses(key, n)
     for fmt, (w, h) in mc.FORMATS.items():
         prefix = "ig" if fmt == "instagram" else "tt"
-        for i, (pose, dx) in enumerate(poses, 1):
-            sc = scene(fmt, w, h, pose, dx)
-            img = mc.render(slides, fmt, w, h, i, n, scene=sc)
+        for i, pose in enumerate(poses, 1):
+            try:
+                if neon:
+                    img = NC.render(slides, fmt, w, h, i, n, pose, key)
+                else:
+                    raise RuntimeError("neon off")
+            except Exception as e:
+                if neon:
+                    print("neon render failed, fallback:", type(e).__name__, str(e)[:200])
+                p, dx = pose if isinstance(pose, tuple) else pick_poses(key, n)[i - 1]
+                img = mc.render(slides, fmt, w, h, i, n, scene=scene(fmt, w, h, p, dx))
             img.save(d / f"{prefix}_{i}.jpg", "JPEG", quality=88, subsampling=0, optimize=True)
     (d / "caption.txt").write_text(make_caption(text), encoding="utf-8")
     make_video(d, slides, key)
