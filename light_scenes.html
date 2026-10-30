@@ -23,6 +23,9 @@ body{font-family:"InterX",sans-serif;font-weight:600;color:#1F1E1D;position:rela
 #chars img{position:absolute;display:none;transform-origin:50% 100%;filter:drop-shadow(0 34px 40px rgba(70,45,25,.28))}
 #fx{position:absolute;left:0;top:0;width:1080px;height:1920px;overflow:hidden}
 #fx div{position:absolute;left:0;top:0;display:none}
+#flash{position:absolute;left:0;top:0;width:1080px;height:1920px;background:radial-gradient(900px 1400px at 50% 50%,rgba(220,60,40,0) 40%,rgba(220,50,35,.55) 100%);opacity:0;pointer-events:none}
+.say{position:absolute;display:none;background:#fff;border-radius:34px;padding:18px 30px;font-size:40px;font-weight:800;color:#1F1E1D;box-shadow:0 16px 36px rgba(70,45,25,.22);white-space:nowrap;transform-origin:20% 100%}
+.say:after{content:'';position:absolute;left:40px;bottom:-16px;border:16px solid transparent;border-top-color:#fff;border-bottom:0}
 </style></head>
 <body>
 <div id="bg"></div><div id="dots"></div>
@@ -30,6 +33,7 @@ body{font-family:"InterX",sans-serif;font-weight:600;color:#1F1E1D;position:rela
 <div id="chars"></div>
 <div id="fx"></div>
 <div id="cap"></div>
+<div id="flash"></div>
 <script>
 const C={ac:'#C2553C',acl:'#F6E3DC',dk:'#1F1E1D',gr:'#8E8981',lg:'#F6F3EF',bd:'#ECE5DC',gn:'#2E9D5A',gnl:'#E3F4E9'};
 const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
@@ -185,7 +189,7 @@ SC.window=(D,par,d)=>{const ev=[{t:0,k:'pop'}];const k=Math.min(1,D/5.8);
  const ty=mk('a','',inp,'left:30px;top:30px;font-size:30px;color:#3B3833');
  const sb=icoBox(inp,780,16,68,'send',C.ac,'#fff');
  const fn=mk('a',esc(d.note||'Оплата один раз · тариф SendPulse окремо'),w,'left:44px;top:720px;font-size:24px;color:#A39D95');
- const t2=2.3*k;ev.push({t:t2,k:'tick'});
+ const t2=2.3*k;for(let q=0;q<(d.typed||'Нагадати про кошик').length;q+=2)ev.push({t:t2+q/20,k:'tick'});
  return{ev,upd(lt){A(w,lt,{t:0,dy:70});tl.forEach((t,i)=>A(t,lt,{t:tt[i],s0:.5,dy:20}));typed(ty,d.typed||'Нагадати про кошик',lt,t2,20,true);
   const sp=P(lt,t2+1.1,.25);S(sb,{transform:`scale(${(1-.15*Math.sin(sp*Math.PI)).toFixed(3)})`})}}};
 SC.chain=(D,par,d)=>{const ev=[{t:.15,k:'thud'},{t:.35,k:'pop'}];
@@ -265,20 +269,21 @@ SC.catalog=(D,par,d)=>{const ev=[{t:0,k:'pop'},{t:.2,k:'rise'}];const N=+d.num||
   mk('a',null,row,`left:12px;top:12px;width:64px;height:64px;border-radius:14px;background:${TH[i%5]}`);mk('a',esc(r[0]),row,'left:96px;top:26px;font-size:28px;font-weight:600;color:#3B3833;white-space:nowrap');
   if(r[1]){const f=pill(row,0,22,r[1],'#FDE4DE','#C2382A',22,'left:auto;right:16px');fl.push({f,i,k})}});
  const fade=mk('a',null,cd,'left:0;top:520px;width:900px;height:120px;background:linear-gradient(180deg,rgba(255,255,255,0),#fff)');
+ const chp=d.chip?pill(par,330,1350,d.chip,C.ac,'#fff',38,'box-shadow:0 18px 40px rgba(194,85,60,.35)'):null;if(chp)ev.push({t:1.6,k:'thud'});
  fl.filter(x=>x.k===0).forEach((x,j)=>ev.push({t:.9+j*.18,k:'tick'}));
  return{ev,upd(lt){A(cnt,lt,{t:0,s0:.6,dy:0});cnt.innerHTML=Math.round(N*EO(P(lt,.1,1.3))).toLocaleString('uk-UA').replace(/ /g,' ');A(un,lt,{t:.3,dy:20});A(cd,lt,{t:.15,dy:80});
-  S(lst,{transform:`translateY(${(-(lt*70)%(rows.length*104)).toFixed(1)}px)`});fl.forEach(x=>A(x.f,lt,{t:.9+x.i*.18,s0:.4,dy:0}))}}};
+  S(lst,{transform:`translateY(${(-(lt*70)%(rows.length*104)).toFixed(1)}px)`});fl.forEach(x=>A(x.f,lt,{t:.9+x.i*.18,s0:.4,dy:0}));if(chp)A(chp,lt,{t:1.6,s0:1.8,dy:0,d:.28,lin:1,r:-3})}}};
 SC.table=(D,par,d)=>{const ev=[{t:.15,k:'thud'},{t:.35,k:'pop'}];
  const tl_=tile(par,90,410,170);
  const cd=mk('card',null,par,'left:60px;top:640px;width:960px;height:700px');
- const hd=['Назва','Вага','Колір'],cx=[34,600,744];hd.forEach((h,i)=>mk('a',h,cd,`left:${cx[i]}px;top:34px;font-size:24px;font-weight:800;color:${C.gr};letter-spacing:1px`));
+ const hd=d.hd||['Назва','Вага','Колір'],cx=[34,600,744];hd.forEach((h,i)=>mk('a',h,cd,`left:${cx[i]}px;top:34px;font-size:24px;font-weight:800;color:${C.gr};letter-spacing:1px`));
  mk('a',null,cd,`left:30px;top:80px;width:900px;height:2px;background:${C.bd}`);
  const R=d.rows||[['глина полимерн. 50г красн','Полімерна глина','50 г','червона'],['ГЛИНА ПОЛІМЕРНА БІЛА 50 Г','Полімерна глина','50 г','біла'],['фарба акрил 20мл (син)','Акрилова фарба','20 мл','синя'],['Скалка акрилова 15см','Скалка акрилова','—','прозора']];
  const step=Math.max(.45,(D-1.6)/R.length);const ts=R.map((_,i)=>1.0+i*step);
  const it=R.map((r,i)=>{const y=104+i*140;const raw=mk('a',esc(r[0]),cd,`left:34px;top:${y+30}px;font-size:30px;color:#9A938A;white-space:nowrap`);
   const ok=mk('a',null,cd,`left:24px;top:${y}px;width:912px;height:120px;border-radius:24px;background:#F3FAF5;border:2px solid #D3EEDC`);
   mk('a',esc(r[1]),ok,'left:10px;top:38px;font-size:32px;font-weight:800');mk('a',esc(r[2]),ok,'left:576px;top:38px;font-size:32px;font-weight:800');
-  mk('a',`<span style="display:inline-block;width:26px;height:26px;border-radius:50%;background:${['#D8453A','#F2EFEA','#3E6FD1','#DDE6EE'][i%4]};border:2px solid #ddd;vertical-align:-4px;margin-right:10px"></span>${esc(r[3])}`,ok,'left:720px;top:38px;font-size:28px;font-weight:800;white-space:nowrap');
+  mk('a',`<span style="display:inline-block;width:26px;height:26px;border-radius:50%;background:${(d.dots||['#D8453A','#F2EFEA','#3E6FD1','#DDE6EE'])[i%4]};border:2px solid #ddd;vertical-align:-4px;margin-right:10px"></span>${esc(r[3])}`,ok,'left:720px;top:38px;font-size:28px;font-weight:800;white-space:nowrap');
   return{raw,ok}});ts.forEach(t=>ev.push({t,k:'swipe'}));
  const bd=pill(par,60,1370,d.badge||'один формат для всіх товарів',C.gnl,C.gn,28);const tb=ts[ts.length-1]+.5;ev.push({t:tb,k:'ding'});
  return{ev,upd(lt){tl_.set(lt,d.from??0,d.to??1,.15);A(tl_.t,lt,{t:0,s0:.6});A(cd,lt,{t:.3,dy:70});
@@ -286,9 +291,9 @@ SC.table=(D,par,d)=>{const ev=[{t:.15,k:'thud'},{t:.35,k:'pop'}];
 SC.desc=(D,par,d)=>{const ev=[{t:.15,k:'thud'},{t:.35,k:'pop'}];
  const tl_=tile(par,90,410,170);
  const cd=mk('card',null,par,'left:60px;top:640px;width:960px;height:760px');
- mk('a',null,cd,`left:34px;top:34px;width:150px;height:150px;border-radius:28px;background:${TH[0]}`);
+ mk('a',d.img?`<img src="${d.img}" style="width:100%;height:100%;object-fit:cover">`:null,cd,`left:34px;top:34px;width:150px;height:150px;border-radius:28px;overflow:hidden;background:${d.img?'#fff':TH[0]};border:2px solid ${C.bd}`);
  mk('a',esc(d.name||'Полімерна глина 50 г, червона'),cd,'left:214px;top:50px;width:700px;font-size:34px;font-weight:800;line-height:1.2');
- mk('a','артикул PG-050-R · 85 грн',cd,'left:214px;top:140px;font-size:24px;color:'+C.gr);
+ mk('a',esc(d.art||'артикул PG-050-R · 85 грн'),cd,'left:214px;top:140px;font-size:24px;color:'+C.gr);
  const l1=mk('a','SEO-ЗАГОЛОВОК',cd,`left:34px;top:226px;font-size:22px;font-weight:800;letter-spacing:2px;color:${C.ac}`);
  const f1=mk('a',null,cd,`left:34px;top:262px;width:892px;height:110px;border-radius:22px;background:${C.lg};border:2px solid ${C.bd}`);const t1=mk('a','',f1,'left:24px;top:20px;width:840px;font-size:28px;font-weight:800;line-height:1.3');
  const l2=mk('a','ОПИС · ЧЕРНЕТКА',cd,`left:34px;top:400px;font-size:22px;font-weight:800;letter-spacing:2px;color:${C.ac}`);
@@ -296,7 +301,7 @@ SC.desc=(D,par,d)=>{const ev=[{t:.15,k:'thud'},{t:.35,k:'pop'}];
  const s1=d.seo||'Полімерна глина червона 50 г для ліплення та біжутерії',s2=d.text||'Пластична глина, що запікається в духовці. Добре тримає дрібні деталі, не липне до рук. Підходить для сережок, фігурок і декору. Брусок 50 г.';
  const bd=pill(par,60,1430,d.badge||'менеджер перевіряє і публікує',C.acl,C.ac,28);
  const tg=(d.tags||['Google','ШІ-пошук']).map((t,i)=>pill(cd,600+i*170,212,t,C.gnl,C.gn,24));
- const ta=.9,tb=ta+s1.length/34+.3;ev.push({t:ta,k:'tick'},{t:tb,k:'tick'});const te=Math.min(D-.5,tb+s2.length/60);ev.push({t:te,k:'ding'});
+ const ta=.9,tb=ta+s1.length/34+.3;for(let q=0;q<s1.length;q+=3)ev.push({t:ta+q/34,k:'tick'});const te=Math.min(D-.5,tb+s2.length/60);ev.push({t:te,k:'ding'});
  return{ev,upd(lt){tl_.set(lt,d.from??1,d.to??2,.15);A(tl_.t,lt,{t:0,s0:.9,dy:0});A(cd,lt,{t:.3,dy:70});typed(t1,s1,lt,ta,34,lt<tb);tg.forEach((e,i)=>A(e,lt,{t:tb-.2+i*.15,s0:.4,dy:0}));typed(t2,s2,lt,tb,60,lt<te+.3);A(bd,lt,{t:te,s0:.5,dy:0})}}};
 SC.attrs=(D,par,d)=>{const ev=[{t:.1,k:'thud'},{t:.15,k:'zap'},{t:1.2,k:'swipe'}];
  const tl_=tile(par,340,560,400);
@@ -309,7 +314,7 @@ SC.attrs=(D,par,d)=>{const ev=[{t:.1,k:'thud'},{t:.15,k:'zap'},{t:1.2,k:'swipe'}
   mk('a',esc(r[0]),row,'left:22px;top:26px;font-size:28px;font-weight:800');
   const bad=icoBox(row,296,14,60,'cursor','#FDE4DE','#C2382A','border-radius:50%');bad.innerHTML='<div style="color:#C2382A;font-size:36px;font-weight:800">!</div>';
   const ok=icoBox(row,296,14,60,'check',C.gn,'#fff','border-radius:50%');if(!r[1])tf.push(i);return{row,bad,ok,good:!!r[1]}});
- const tfix=tf.map((_,j)=>2.4+j*.45);tfix.forEach(t=>ev.push({t,k:'pop'}));const tb=(tfix.length?tfix[tfix.length-1]:2.2)+.5;ev.push({t:tb,k:'ding'});
+ const tfix=tf.map((_,j)=>2.4+j*.45);tfix.forEach(t=>ev.push({t,k:'ding'}));const tb=(tfix.length?tfix[tfix.length-1]:2.2)+.5;ev.push({t:tb,k:'ding'});
  const bd=pill(par,60,1430,d.badge||'маркетплейс не відхилить',C.gnl,C.gn,28);
  return{ev,upd(lt){tl_.set(lt,d.from??2,d.to??3,.1);A(tl_.t,lt,{t:0,s0:.7,dy:0,mv:[{t:1.2,d:.5,dx:-250,dy:-60,s:.55}]});rp.upd(lt,.15,.9);
   A(lb,lt,{t:1.4,dx:-30,dy:0});A(lb2,lt,{t:1.55,dx:-30,dy:0});A(cd,lt,{t:1.7,dy:60});
@@ -345,13 +350,52 @@ SC.export=(D,par,d)=>{const ev=[{t:0,k:'pop'},{t:.4,k:'rise'}];const N=+d.num||1
  const tt=Math.min(D-.7,2.2);ev.push({t:tt,k:'thud'});
  return{ev,burstAt:[tt+.05,540,1120],upd(lt){A(cd,lt,{t:0,dy:70});const p=EIO(P(lt,.4,1.6));S(fill,{transform:`scaleX(${Math.max(.001,p).toFixed(4)})`});num.innerHTML=`${Math.round(N*p).toLocaleString('uk-UA').replace(/ /g,' ')} / ${N.toLocaleString('uk-UA').replace(/ /g,' ')}`;
   fm.forEach((e,i)=>A(e,lt,{t:1+i*.15,s0:.5,dy:0}));A(done,lt,{t:tt,s0:1.8,dy:0,d:.3,lin:1,r:-3})}}};
+// ===== календар: місяці гортаються
+SC.months=(D,par,d)=>{const ev=[{t:0,k:'pop'}];
+ const M=d.months||['Листопад','Грудень','Січень','Лютий','Березень','Квітень','Травень','Червень'];
+ const cal=mk('card',null,par,'left:290px;top:520px;width:500px;height:560px;overflow:hidden');
+ const hd=mk('a','',cal,`left:0;top:0;width:500px;height:130px;background:${C.ac};color:#fff;font-size:52px;font-weight:800;display:flex;align-items:center;justify-content:center`);
+ const dn=mk('a','',cal,'left:0;top:170px;width:500px;text-align:center;font-size:250px;font-weight:800;letter-spacing:-8px;line-height:1');
+ mk('a',null,cal,`left:60px;top:470px;width:380px;height:20px;border-radius:10px;background:${C.lg}`);
+ const tf=.25,step=Math.min(.16,(D*.45)/M.length);M.forEach((_,i)=>ev.push({t:tf+i*step,k:'tick'}));const te=tf+M.length*step;
+ const big=mk('a',esc(d.big||'7 МІСЯЦІВ'),par,`left:0;top:1130px;width:1080px;text-align:center;font-size:130px;font-weight:800;letter-spacing:-3px;color:${C.ac}`);
+ const sub=mk('a',esc(d.sub||'ручної роботи'),par,'left:0;top:1280px;width:1080px;text-align:center;font-size:52px;font-weight:800');
+ ev.push({t:te,k:'thud'},{t:te+.25,k:'pop'});
+ return{ev,burstAt:[te+.02,540,1200],upd(lt){A(cal,lt,{t:0,s0:.6,dy:0,r:-2});const k=Math.min(M.length-1,Math.max(0,Math.floor((lt-tf)/step)));
+  hd.innerHTML=esc(M[k]);dn.innerHTML=String((k*7+3)%28+1);const fp=((lt-tf)/step)%1;S(dn,{transform:`scaleY(${lt<te&&lt>tf?Math.max(.2,Math.abs(1-2*fp)).toFixed(3):1})`});
+  A(big,lt,{t:te,s0:1.8,dy:0,d:.3,lin:1});A(sub,lt,{t:te+.25,dy:30})}}};
+// ===== картка товару Пром: до / після
+function promCard(par,x,y,o){const c=mk('card',null,par,`left:${x}px;top:${y}px;width:960px;height:${o.h||1060}px;overflow:hidden`);
+ const bar=mk('a',`<span style="background:#fff;color:#6B2BC8;border-radius:12px;padding:4px 14px;font-weight:800">prom</span><span style="margin-left:18px;opacity:.85">Каталог / Посуд одноразовий</span>`,c,'left:0;top:0;width:960px;height:76px;background:#6B2BC8;color:#fff;font-size:24px;display:flex;align-items:center;padding-left:30px');
+ const im=mk('a',`<img src="${o.img}" style="width:100%;height:100%;object-fit:cover">`,c,`left:30px;top:106px;width:380px;height:380px;border-radius:24px;overflow:hidden;background:#fff;border:2px solid ${C.bd}`);
+ const tt=mk('a',esc(o.title),c,`left:440px;top:110px;width:490px;font-size:${o.title.length>40?34:44}px;font-weight:800;line-height:1.18`);
+ const ft=[];(o.flags||[]).forEach((f,i)=>ft.push(pill(c,440,330+i*62,f,'#FDE4DE','#C2382A',24)));
+ (o.ok||[]).forEach((f,i)=>ft.push(pill(c,440+(i%2)*200,330+Math.floor(i/2)*62,f,C.gnl,C.gn,24)));
+ const btn=mk('a','Купити',c,`left:440px;top:${o.ok&&o.ok.length?470:420}px;width:250px;height:76px;border-radius:22px;background:#6B2BC8;color:#fff;font-size:30px;font-weight:800;display:flex;align-items:center;justify-content:center;${o.flags&&o.flags.length>2?'display:none':''}`);
+ mk('a','Характеристики',c,'left:30px;top:520px;font-size:30px;font-weight:800');
+ const rows=(o.attrs||[]).map((r,i)=>{const e=mk('a',`<span style="color:${C.gr}">${esc(r[0])}</span><span style="float:right;font-weight:800;color:${r[1]?C.dk:'#C2382A'}">${esc(r[1]||'не заповнено')}</span>`,c,`left:30px;top:${570+i*58}px;width:900px;height:52px;font-size:26px;border-bottom:2px solid ${C.bd};padding-top:10px`);return e});
+ const dy=570+(o.attrs||[]).length*58+24;mk('a','Опис',c,`left:30px;top:${dy}px;font-size:30px;font-weight:800`);
+ const ds=mk('a',esc(o.desc||'Опис відсутній'),c,`left:30px;top:${dy+48}px;width:900px;font-size:26px;line-height:1.4;color:${o.desc?'#3B3833':'#B4ABA0'}`);
+ return{c,ft,rows,ds}}
+SC.prom=(D,par,d)=>{const ev=[{t:0,k:'pop'}];const after=d.mode==='after';
+ const B=promCard(par,60,390,{img:d.before||'prom_before.webp',title:d.btitle||'Ложка біла',flags:d.flags||['3 слова в назві','0 характеристик','без опису'],attrs:d.battrs||[['Матеріал',''],['Довжина',''],['Кількість в упаковці','']],h:1060});
+ let Aft=null,tfl=1e9;
+ if(after){Aft=promCard(par,60,390,{img:d.after||'prom_after.jpg',title:d.atitle,ok:d.ok||['Google ✓','ШІ-пошук ✓','Пром ✓','2 мови ✓'],attrs:d.aattrs,desc:d.adesc,h:1100});tfl=d.flip??.9;ev.push({t:tfl,k:'whoosh'},{t:tfl+.35,k:'ding'})}
+ else{B.ft.forEach((f,i)=>ev.push({t:.8+i*.35,k:'thud'}))}
+ B.rows.forEach((r,i)=>{});
+ return{ev,burstAt:after?[tfl+.4,540,700]:null,upd(lt){
+  const pf=P(lt,tfl,.5);const half=pf<.5;
+  S(B.c,{opacity:after&&!half?0:1,transform:`translateY(${(60*(1-EO(P(lt,0,.4)))).toFixed(1)}px) perspective(1600px) rotateY(${(after?Math.min(90,pf*180):0).toFixed(1)}deg)`});
+  if(!after)B.ft.forEach((f,i)=>A(f,lt,{t:.8+i*.35,s0:1.8,dy:0,d:.25,lin:1,r:-3}));
+  if(Aft){S(Aft.c,{opacity:half?0:1,transform:`perspective(1600px) rotateY(${(half?-90:-(1-pf)*180).toFixed(1)}deg)`});
+   Aft.ft.forEach((f,i)=>A(f,lt,{t:tfl+.6+i*.2,s0:.4,dy:0}));Aft.rows.forEach((r,i)=>A(r,lt,{t:tfl+.7+i*.12,dx:-30,dy:0,s0:1}));A(Aft.ds,lt,{t:tfl+1.4,dy:20,s0:1})}}}};
 // ---------- субтитри
 function chunks(text){const w=text.replace(/\s+/g,' ').trim().split(' ');const out=[];let cur=[];let len=0;
  w.forEach((x,i)=>{cur.push(x);len+=x.replace(/\*/g,'').length+1;const br=/[,.?!:;…]$/.test(x.replace(/\*/g,''));if((br&&cur.length>=2)||len>=24||(br&&len>14)){out.push(cur);cur=[];len=0}});if(cur.length)out.push(cur);
  // одне слово в кінці — приєднати до попереднього
  if(out.length>1&&out[out.length-1].length===1&&out[out.length-2].join(' ').length<26){out[out.length-2].push(...out.pop())}return out}
 // ---------- старт / кадр
-let CFG,TL,SCN=[],CAPS=[],CHAR=[];
+let CFG,TL,SCN=[],CAPS=[],CHAR=[],PUNCH=[];
 function START(cfg,tl){CFG=cfg;TL=tl.lines;const stage=document.getElementById('stage'),cap=document.getElementById('cap'),chars=document.getElementById('chars');window.EVENTS=[];
  const n=cfg.lines.length;
  cfg.lines.forEach((L,i)=>{const t0=i?TL[i].t0:0,t1=i<n-1?TL[i+1].t0:cfg.total+1;const D=t1-t0;
@@ -364,10 +408,11 @@ function START(cfg,tl){CFG=cfg;TL=tl.lines;const stage=document.getElementById('
   const lt0=TL[i].t0,ld=TL[i].d-.15;const ch=chunks(L.text);const all=ch.flat();const wl=all.map(x=>x.replace(/\*/g,'').length+2);const tot=wl.reduce((a,b)=>a+b,0);
   let acc=0;const wt=wl.map(v=>{const s=lt0+ld*acc/tot;acc+=v;return s});let wi=0;
   ch.forEach((c,ci)=>{const e=mk('ch',null,cap,'');const sp=c.map(x=>{const key=/\*/.test(x);const s=document.createElement('span');s.textContent=x.replace(/\*/g,'');if(key)s.className='k';e.appendChild(s);return{s,t:wt[wi++]}});
-   CAPS.push({e,sp,t0:sp[0].t,t1:0})});
+   CAPS.push({e,sp,t0:sp[0].t,t1:0});sp.forEach(w=>{if(w.s.className==='k'){PUNCH.push({t:w.t,sh:!!(L.fx&&L.fx.shake)});EVENTS.push({t:+w.t.toFixed(3),k:(L.fx&&L.fx.shake)?'thud':'pop'})}})});
   // персонаж
   if(L.char){const im=document.createElement('img');im.src=(L.char.img||'ch_s1_point')+'.webp';const h=L.char.h||980;im.style.height=h+'px';chars.appendChild(im);
-   CHAR.push({im,t0:t0+(L.char.in??.15),t1:t1+.1,top:L.char.top??760,h,x:L.char.x})}});
+   let say=null;if(L.char.say){say=mk('say',esc(L.char.say),chars,'');EVENTS.push({t:+(t0+(L.char.in??.15)+.6).toFixed(3),k:'pop'})}
+   CHAR.push({im,t0:t0+(L.char.in??.15),t1:t1+.1,top:L.char.top??760,h,x:L.char.x,say})}});
  for(let i=0;i<CAPS.length;i++)CAPS[i].t1=i<CAPS.length-1?CAPS[i+1].t0:cfg.total;
  // підпис наприкінці: тримаємо останній шматок до кінця
  EVENTS.sort((a,b)=>a.t-b.t);window.READY=Promise.all([...document.images].map(im=>im.complete?1:new Promise(r=>{im.onload=im.onerror=r})));return window.READY}
@@ -386,7 +431,12 @@ function seek(t){
   const pi=P(t,c.t0,.55),po=EIO(P(t,c.t1-.05,.4)),w=c.im.naturalWidth*c.h/c.im.naturalHeight;const x=c.x??(1080-150-w);
   const dx=(1-EB(pi))*420+po*480,br=1+.012*Math.sin(t*2.6),sw=1.1*Math.sin(t*1.7);
   c.im.style.display='block';c.im.style.left=x+'px';c.im.style.top=c.top+'px';c.im.style.opacity=String(clamp(pi*3)*(1-po));
-  c.im.style.transform=`translateX(${dx.toFixed(1)}px) rotate(${sw.toFixed(2)}deg) scale(${br.toFixed(4)},${(2-br).toFixed(4)})`});
+  c.im.style.transform=`translateX(${dx.toFixed(1)}px) rotate(${sw.toFixed(2)}deg) scale(${br.toFixed(4)},${(2-br).toFixed(4)})`;
+  if(c.say){const ps=P(t,c.t0+.6,.35);const e=EB(ps);c.say.style.display=ps>0?'block':'none';c.say.style.left=(x+w*.18)+'px';c.say.style.top=(c.top-110)+'px';c.say.style.opacity=String(clamp(ps*3)*(1-po));c.say.style.transform=`translate(${dx.toFixed(1)}px,${(Math.sin(t*3)*6).toFixed(1)}px) scale(${(.3+.7*e).toFixed(3)}) rotate(-4deg)`}});
+ let pz=0,sx=0,sy=0,fl=0;PUNCH.forEach(p=>{const u=t-p.t;if(u<-.05||u>.6)return;const e=u<.07?clamp((u+.05)/.12):Math.exp(-(u-.07)*7);pz+=(p.sh?.075:.045)*e;if(p.sh){sx+=Math.sin(u*90)*22*e;sy+=Math.cos(u*77)*14*e;fl=Math.max(fl,e)}});
+ S(document.getElementById('stage'),{transform:`translate(${sx.toFixed(1)}px,${sy.toFixed(1)}px) scale(${(1+pz).toFixed(4)})`,'transform-origin':'50% 45%'});
+ S(document.getElementById('chars'),{transform:`translate(${(sx*.6).toFixed(1)}px,${(sy*.6).toFixed(1)}px)`});
+ S(document.getElementById('flash'),{opacity:(fl*.8).toFixed(3)});
  drawBursts(t);
  return true}
 </script>
