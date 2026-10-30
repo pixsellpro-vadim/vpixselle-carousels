@@ -193,7 +193,7 @@ def expand(simple, key="00000000"):
 # ---------------------------------------------------------------- голос: ElevenLabs (живий) -> резерв edge-tts
 
 EL_VOICE = os.environ.get("EL_VOICE_ID", "").strip()
-EL_MODEL = os.environ.get("EL_MODEL", "eleven_multilingual_v2").strip()
+EL_MODEL = (os.environ.get("EL_MODEL") or "eleven_multilingual_v2").strip()
 
 
 def eleven_ready():
