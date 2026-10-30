@@ -163,6 +163,30 @@ def expand(simple, key="00000000"):
             D = {"type": "chart", "title": clean(l.get("label"), 34), "color": "r" if trend == "down" else "g",
                  "items": [{"l": items[k][:14], "v": vals[k]} for k in range(n_)]}
             marks = [{"t": 2.2, "type": "arrow", "at": "bar%d" % (n_ - 1), "dir": "l"}]
+        elif bg == "flow" and len(items) >= 2:
+            nodes = []
+            for x in items[:5]:
+                a_, _, b_ = x.partition("|")
+                if a_.strip():
+                    nodes.append({"n": a_.strip()[:22], "s": b_.strip()[:30]})
+            if len(nodes) >= 2:
+                D = {"type": "flow", "title": clean(l.get("label"), 26) or "Сценарій", "nodes": nodes}
+                marks = [{"t": 2.6, "type": "circle", "at": "last"}]
+        elif bg == "phone" and items:
+            msgs = []
+            for k, x in enumerate(items[:6]):
+                shop = x.lstrip().startswith(">")
+                cl = x.lstrip().startswith("<")
+                txt = x.lstrip("<> ").strip()[:48]
+                if txt:
+                    who = "s" if shop else "c" if cl else ("s" if k % 2 else "c")
+                    msgs.append({"who": who, "t": txt})
+            if msgs:
+                D = {"type": "phone", "name": clean(l.get("label"), 16) or "Клієнтка", "time": clean(l.get("time"), 6) or "23:40", "msgs": msgs}
+                marks = [{"t": 2.4, "type": "circle", "at": "m%d" % (len(msgs) - 1)}]
+        elif bg == "steps" and items:
+            D = {"type": "steps", "title": clean(l.get("label"), 30) or "Як це працює", "items": [{"t": x.lstrip("+- ").strip()[:44]} for x in items[:5]]}
+            marks = [{"t": 2.4, "type": "circle", "at": "last"}]
         if D is None:   # dm — запасний варіант: пошук повідомлень у директі
             its = items or [t[:40]]
             rows = [{"n": NAMES[k % 6], "t": its[k], "time": TIMES[k % 6], "u": True} for k in range(len(its))]
@@ -177,6 +201,8 @@ def expand(simple, key="00000000"):
         if big:
             fs = 130 if len(big) <= 8 else 100 if len(big) <= 12 else 80
             line["big"] = {"l": "", "v": big.upper(), "red": bool(l.get("bad", True)), "t": 1.5, "fs": fs, "w": 440}
+            if str(l.get("bg", "")).lower() == "notifs":
+                line["big"]["y"] = 250
         out_lines.append(line)
     # заклик: діалог із кодовим словом
     out_lines.append({"text": cta, "bg": {"type": "dm", "rows": [
@@ -185,7 +211,7 @@ def expand(simple, key="00000000"):
         "pose": "ch_s4_welcome"})
     hook = clean(simple.get("hook"), 90) or out_lines[0]["text"]
     return {"engine": "talk", "html": HTML, "nomusic": True, "sfx_scale": 0.55, "hook": hook,
-            "cover": {"tag": clean(simple.get("tag"), 28).upper()}, "end": {"key": ckey}, "lines": out_lines}
+            "cover": {"tag": clean(simple.get("tag"), 28).upper()}, "end": {"key": ckey}, "tseed": int(key[2], 16) % 6, "lines": out_lines}
 
 
 # ---------------------------------------------------------------- таймлайн та звук
@@ -329,6 +355,23 @@ def snd(kind):
         n = int(SR * 0.7)
         t = np.arange(n) / SR
         return (np.sin(2 * math.pi * 1318 * t) + .5 * np.sin(2 * math.pi * 1976 * t)) * _env(n, .002, .16) * .7
+    if kind == "swipe":
+        n = int(SR * 0.3)
+        x = r.randn(n)
+        c = np.linspace(0.1, 0.6, n)
+        y = np.zeros(n)
+        sm = 0.0
+        for i in range(n):
+            sm += c[i] * (x[i] - sm)
+            y[i] = x[i] - sm          # високочастотний «свист»
+        return y * np.sin(np.linspace(0, math.pi, n)) ** 2 * 0.6
+    if kind == "click":
+        n = int(SR * 0.09)
+        return np.sin(2 * math.pi * 1100 * np.arange(n) / SR) * _env(n, .0005, .01) + r.randn(n) * _env(n, .0005, .006) * .4
+    if kind == "zap":
+        n = int(SR * 0.3)
+        f = np.linspace(2400, 180, n) * (1 + 0.15 * np.sign(np.sin(np.linspace(0, 90, n))))
+        return np.sign(np.sin(2 * math.pi * np.cumsum(f) / SR)) * _env(n, .001, .08) * .45
     if kind == "rise":
         n = int(SR * 0.9)
         f = np.linspace(260, 980, n)
@@ -336,7 +379,7 @@ def snd(kind):
     return np.zeros(10)
 
 
-GAIN = {"whoosh": .30, "whoosh2": .34, "pop": .30, "thud": .55, "tick": .16, "ding": .22, "rise": .18}
+GAIN = {"swipe": .30, "click": .35, "zap": .22, "whoosh": .30, "whoosh2": .34, "pop": .30, "thud": .55, "tick": .16, "ding": .22, "rise": .18}
 
 
 def build_sfx(events, total, path, scale=1.0):
