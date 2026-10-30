@@ -403,7 +403,7 @@ def main():
         EX_STATE["ok"] = bool(EX.probe_voice())
         print("explainer voice:", "ok" if EX_STATE["ok"] else "none (ролики будуть без голосу)")
     if KX is not None and EX is not None and any((r.get("status") or "").strip().lower() == "reel" and KX.parse_simple(r.get("text") or "") for r in rows):
-        KX_STATE["ok"] = bool(EX.probe_voice())
+        KX_STATE["ok"] = bool(KX.probe_voice())
         print("kinetic voice:", "ok" if KX_STATE["ok"] else "none (ролики будуть без голосу)")
     if V3D is not None and any((r.get("status") or "").strip().lower() == "reel" for r in rows):
         V3D_STATE["ok"] = bool(V3D.probe_voice())

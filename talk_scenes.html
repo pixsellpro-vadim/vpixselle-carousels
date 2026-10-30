@@ -144,6 +144,58 @@ BG.stat=(D,dur)=>{
  if(D.note)mk('t',esc(D.note),r,'left:0;width:1080px;text-align:center;top:'+(340+fs+110)+'px;font-size:32px;color:#8a8f99');
  return{root:r,anc:{num:{x:90,y:340,w:900,h:fs}},ev:[{t:.2,k:'rise'}],upd(lt){const p=EO(prog(lt,.2,Math.min(2.4,dur*.55)));n.textContent=(D.prefix||'')+fmt(D.to*p);st(n,{transform:tf(0,0,1+.03*Math.sin(lt*9)*(p<1?1:0),0)})}}};
 
+// чек-лист: що є / чого бракує
+BG.checklist=(D,dur)=>{
+ const r=mk('bd');mk('pnl','',r,'left:40px;top:110px;width:1000px;height:1480px;border-radius:60px');
+ mk('t',esc(D.title||'Чек-лист'),r,'left:90px;top:160px;font-size:64px;font-weight:800;color:#111');
+ const it=D.items||[],n=it.length,rt=rtimes(n,dur,.4,.75,.4,.9),el=[],anc={};
+ it.forEach((o,i)=>{const y=290+i*196;const ok=o.ok!==false;
+  const c=mk('',null,r,`position:absolute;left:60px;top:${y}px;width:960px;height:176px;border-radius:38px;background:${ok?'#EAF8EF':'#FDECEC'}`);
+  mk('',ok?'✓':'✕',c,`position:absolute;left:30px;top:34px;width:108px;height:108px;border-radius:50%;background:${ok?'#22C55E':'#FF3B30'};color:#fff;font-size:68px;font-weight:800;text-align:center;line-height:108px`);
+  mk('',esc(o.t),c,'position:absolute;left:170px;top:0;width:760px;height:176px;display:flex;align-items:center;font-size:44px;font-weight:800;color:#111;line-height:1.14');
+  el.push(c);anc['row'+i]={x:60,y,w:960,h:176};anc['ok'+i]={x:60,y,w:960,h:176}});
+ return{root:r,anc,ev:rt.map((x,i)=>({t:x,k:(it[i]&&it[i].ok===false)?'tick':'ding'})),upd(lt){el.forEach((c,i)=>{const p=pop(lt,rt[i],.4);st(c,{opacity:clamp(p*3),transform:tf((1-p)*-240,0,1,0)})})}}};
+// було / стало
+BG.compare=(D,dur)=>{
+ const r=mk('bd');
+ const cols=[{x:40,h:D.a||'БУЛО',bg:'#FDECEC',hc:'#E5252A',k:'a'},{x:550,h:D.b||'СТАЛО',bg:'#EAF8EF',hc:'#16A34A',k:'b'}];
+ const anc={},el=[];
+ cols.forEach((c,ci)=>{mk('pnl','',r,`left:${c.x}px;top:150px;width:490px;height:1100px;border-radius:50px;background:${c.bg}`);
+  mk('t',esc(c.h),r,`left:${c.x}px;width:490px;text-align:center;top:190px;font-size:54px;font-weight:800;letter-spacing:3px;color:${c.hc}`);
+  anc['col'+ci]={x:c.x,y:150,w:490,h:300}});
+ const A=D.aItems||[],B=D.bItems||[],n=Math.max(A.length,B.length),rt=rtimes(n,dur,.4,.75,.5,1.0);
+ for(let i=0;i<n;i++){[[A[i],40,'#fff','#E5252A'],[B[i],550,'#fff','#16A34A']].forEach((z,ci)=>{if(!z[0])return;const y=300+i*300;
+   const c=mk('',esc(z[0]),r,`position:absolute;left:${z[1]+24}px;top:${y}px;width:442px;height:268px;border-radius:34px;background:#fff;border:6px solid ${z[3]};display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;font-size:40px;font-weight:800;color:#111;line-height:1.15;box-shadow:0 10px 26px rgba(20,35,63,.14)`);
+   el.push({c,i,ci});anc['c'+ci+'_'+i]={x:z[1]+24,y,w:442,h:268}})}
+ return{root:r,anc,ev:rt.map(x=>({t:x,k:'pop'})),upd(lt){el.forEach(o=>{const p=pop(lt,rt[o.i]+(o.ci?.25:0),.4);st(o.c,{opacity:clamp(p*3),transform:tf((o.ci?1:-1)*(1-p)*200,0,.9+.1*p,0)})})}}};
+// пошукова видача
+BG.serp=(D,dur)=>{
+ const r=mk('bd');mk('pnl','',r,'left:40px;top:110px;width:1000px;height:1480px;border-radius:60px');
+ mk('',null,r,'position:absolute;left:80px;top:160px;width:920px;height:110px;border-radius:55px;background:#F1F3F4;border:3px solid #DADCE0');
+ const q=mk('t','',r,'left:130px;top:186px;font-size:46px;color:#111;font-weight:800');
+ const it=D.items||[],n=it.length,rt=rtimes(n,dur,.9,.8,.4,.9),el=[],anc={};const pos=Math.max(1,Math.min(n,D.pos||n));
+ it.forEach((o,i)=>{const y=330+i*224;const me=(i+1)===pos;
+  const c=mk('',null,r,`position:absolute;left:60px;top:${y}px;width:960px;height:204px;border-radius:30px;background:${me?'#FFF8D6':'#fff'};border:${me?'6px solid #F5B301':'3px solid #EEF0F3'}`);
+  mk('',String(i+1),c,`position:absolute;left:26px;top:60px;width:84px;height:84px;border-radius:50%;background:${me?'#F5B301':'#E5E7EB'};color:#111;font-size:46px;font-weight:800;text-align:center;line-height:84px`);
+  mk('t',esc(o.u||''),c,'left:140px;top:22px;font-size:28px;color:#16794C;font-weight:600');
+  mk('',esc(o.t),c,'position:absolute;left:140px;top:62px;width:790px;font-size:42px;font-weight:800;color:#1A0DAB;line-height:1.12;max-height:120px;overflow:hidden');
+  el.push(c);anc['row'+i]={x:60,y,w:960,h:204};if(me)anc['me']={x:60,y,w:960,h:204}});
+ const qt=D.q||'';
+ return{root:r,anc,ev:rt.map(x=>({t:x,k:'tick'})),upd(lt){q.textContent=qt.slice(0,Math.floor(qt.length*clamp((lt-.1)/.8)));el.forEach((c,i)=>{const p=pop(lt,rt[i],.35);st(c,{opacity:clamp(p*3),transform:tf(0,(1-p)*60,1,0)})})}}};
+// стовпчики (без цифр: лише напрям)
+BG.chart=(D,dur)=>{
+ const r=mk('bd');mk('pnl','',r,'left:40px;top:150px;width:1000px;height:1120px;border-radius:60px');
+ mk('t',esc(D.title||''),r,'left:0;width:1080px;text-align:center;top:200px;font-size:52px;font-weight:800;color:#111');
+ const it=D.items||[],n=it.length,col=D.color==='g'?'#22C55E':'#FF3B30',anc={},bars=[];
+ const bw=Math.min(150,Math.floor(840/Math.max(n,1)*.62)),gap=Math.floor(840/Math.max(n,1)),x0=120+(840-gap*n)/2+(gap-bw)/2,base=1130,maxh=640;
+ mk('',null,r,`position:absolute;left:100px;top:${base}px;width:880px;height:6px;background:#D1D5DB;border-radius:3px`);
+ it.forEach((o,i)=>{const f=Math.max(.12,Math.min(1,o.v==null?.5:o.v)),h=maxh*f,x=x0+i*gap;
+  const b=mk('',null,r,`position:absolute;left:${x}px;top:${base-h}px;width:${bw}px;height:${h}px;border-radius:22px 22px 0 0;background:${col};transform-origin:50% 100%`);
+  mk('',esc(o.l||''),r,`position:absolute;left:${x-30}px;top:${base+22}px;width:${bw+60}px;text-align:center;font-size:32px;font-weight:800;color:#111;line-height:1.1`);
+  bars.push(b);anc['bar'+i]={x,y:base-h,w:bw,h};});
+ const rt=rtimes(n,dur,.4,.75,.3,.6);
+ return{root:r,anc,ev:rt.map(x=>({t:x,k:'rise'})),upd(lt){bars.forEach((b,i)=>{const p=EO(prog(lt,rt[i],.6));st(b,{transform:`scaleY(${Math.max(.001,p).toFixed(3)})`})})}}};
+
 /* ========== позначки маркером ========== */
 function markPath(m,a){
  const P=(x,y)=>x.toFixed(1)+' '+y.toFixed(1);const pad=m.pad==null?24:m.pad;

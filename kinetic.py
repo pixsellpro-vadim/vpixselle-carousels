@@ -9,7 +9,7 @@
 expand() перетворює її на повну специфікацію рушія talk_scenes.html (фон, позначки, пози),
 make() віддає готовий mp4 у d/tt_video.mp4 (кеш на Pages за версією шаблону).
 """
-import hashlib, json, math, os, re, shutil, subprocess, sys, tempfile, urllib.request, wave
+import hashlib, json, math, os, re, shutil, subprocess, sys, tempfile, time, urllib.request, wave
 from pathlib import Path
 
 import numpy as np
@@ -80,14 +80,14 @@ def price(seed, i):
 
 def expand(simple, key="00000000"):
     """Проста специфікація -> повна специфікація рушія talk_scenes.html."""
-    lines_in = [l for l in simple.get("lines", []) if isinstance(l, dict) and clean(l.get("t"))][:9]
+    lines_in = [l for l in simple.get("lines", []) if isinstance(l, dict) and clean(l.get("t"))][:16]
     if len(lines_in) < 2:
         return None
     ckey = clean(simple.get("key"), 14).upper() or KEY_DEFAULT
     cta = clean(simple.get("cta"), 110) or f"Хочете так само? Напишіть мені в приват слово «{ckey}»."
     out_lines = []
     for i, l in enumerate(lines_in):
-        t = clean(l.get("t"), 200)
+        t = clean(l.get("t"), 420)
         bg = str(l.get("bg") or "dm").lower()
         items = [clean(x, 40) for x in (l.get("items") or []) if clean(x, 40)][:5]
         marks, D = [], None
@@ -120,6 +120,49 @@ def expand(simple, key="00000000"):
                 D = {"type": "stat", "label": clean(l.get("label"), 40).upper(), "to": num, "unit": clean(l.get("unit"), 24),
                      "note": clean(l.get("note"), 40).upper() or "ПРИКЛАД", "color": "g" if l.get("good") else "r"}
                 marks = [{"t": 2.2, "type": "underline", "at": "num"}]
+        elif bg == "checklist" and items:
+            its = []
+            for x in items[:6]:
+                ok = not x.startswith("-")
+                its.append({"t": x.lstrip("+- ").strip()[:44], "ok": ok})
+            D = {"type": "checklist", "title": clean(l.get("label"), 30) or "Чек-лист", "items": its}
+            marks = [{"t": 2.0, "type": "check" if its[-1]["ok"] else "cross", "at": "ok%d" % (len(its) - 1)}]
+        elif bg == "compare" and items:
+            A_, B_ = [], []
+            for x in items[:4]:
+                a, _, b = x.partition("|")
+                if a.strip():
+                    A_.append(a.strip()[:40])
+                if b.strip():
+                    B_.append(b.strip()[:40])
+            if A_ or B_:
+                D = {"type": "compare", "aItems": A_, "bItems": B_, "a": clean(l.get("a"), 12).upper() or "БУЛО",
+                     "b": clean(l.get("b"), 12).upper() or "СТАЛО"}
+                marks = [{"t": 2.2, "type": "circle", "at": "col1"}]
+        elif bg == "serp" and items:
+            try:
+                pos = int(float(str(l.get("num") or len(items))))
+            except Exception:
+                pos = len(items)
+            its = []
+            for k, x in enumerate(items[:5]):
+                t_, _, u_ = x.partition("|")
+                its.append({"t": t_.strip()[:52], "u": (u_.strip() or "yourshop.ua")[:30]})
+            D = {"type": "serp", "q": clean(l.get("label"), 34) or "купити онлайн", "items": its, "pos": pos}
+            marks = [{"t": 2.4, "type": "circle", "at": "me"}]
+        elif bg == "chart" and items:
+            trend = str(l.get("trend") or ("down" if l.get("bad") else "up")).lower()
+            n_ = min(len(items), 6)
+            vals = []
+            for k in range(n_):
+                f = k / max(n_ - 1, 1)
+                v = {"up": 0.25 + 0.7 * f, "down": 0.95 - 0.7 * f, "flat": 0.55}.get(trend, 0.25 + 0.7 * f)
+                if trend == "flat":
+                    v += 0.07 * ((k * 7 + int(key[1], 16)) % 3 - 1)
+                vals.append(round(v, 3))
+            D = {"type": "chart", "title": clean(l.get("label"), 34), "color": "r" if trend == "down" else "g",
+                 "items": [{"l": items[k][:14], "v": vals[k]} for k in range(n_)]}
+            marks = [{"t": 2.2, "type": "arrow", "at": "bar%d" % (n_ - 1), "dir": "l"}]
         if D is None:   # dm — запасний варіант: пошук повідомлень у директі
             its = items or [t[:40]]
             rows = [{"n": NAMES[k % 6], "t": its[k], "time": TIMES[k % 6], "u": True} for k in range(len(its))]
@@ -140,28 +183,105 @@ def expand(simple, key="00000000"):
         {"n": "Ви", "t": ckey, "time": "щойно", "u": True},
         {"n": "vPixselle", "t": "Привіт! Розкажу, що можна автоматизувати", "time": "щойно", "u": True}]},
         "pose": "ch_s4_welcome"})
-    hook = clean(simple.get("hook"), 80) or out_lines[0]["text"]
+    hook = clean(simple.get("hook"), 90) or out_lines[0]["text"]
     return {"engine": "talk", "html": HTML, "nomusic": True, "sfx_scale": 0.55, "hook": hook,
             "cover": {"tag": clean(simple.get("tag"), 28).upper()}, "end": {"key": ckey}, "lines": out_lines}
 
 
 # ---------------------------------------------------------------- таймлайн та звук
 
+# ---------------------------------------------------------------- голос: ElevenLabs (живий) -> резерв edge-tts
+
+EL_VOICE = os.environ.get("EL_VOICE_ID", "").strip()
+EL_MODEL = os.environ.get("EL_MODEL", "eleven_multilingual_v2").strip()
+
+
+def eleven_ready():
+    return bool(os.environ.get("ELEVENLABS_API_KEY", "").strip() and EL_VOICE)
+
+
+def synth_eleven(text, path, prev_text="", next_text=""):
+    """Одна репліка через ElevenLabs. Для моделі multilingual_v2 передаємо сусідні репліки (previous_text/next_text),
+    щоб інтонація між реплікаціями не рвалась. Повертає True/False."""
+    import json as _j
+    key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+    if not key or not EL_VOICE:
+        return False
+    v3 = EL_MODEL.startswith("eleven_v3")
+    body = {"text": text, "model_id": EL_MODEL,
+            "voice_settings": ({"stability": 0.5} if v3 else
+                               {"stability": float(os.environ.get("EL_STABILITY", "0.42")),
+                                "similarity_boost": float(os.environ.get("EL_SIMILARITY", "0.8")),
+                                "style": float(os.environ.get("EL_STYLE", "0.3")),
+                                "use_speaker_boost": True,
+                                "speed": float(os.environ.get("EL_SPEED", "1.0"))})}
+    if not v3:
+        if prev_text:
+            body["previous_text"] = prev_text[-300:]
+        if next_text:
+            body["next_text"] = next_text[:300]
+    url = f"{os.environ.get('EL_BASE', 'https://api.elevenlabs.io')}/v1/text-to-speech/{EL_VOICE}?output_format=mp3_44100_128"
+    for attempt in (1, 2, 3):
+        try:
+            req = urllib.request.Request(url, data=_j.dumps(body).encode("utf-8"),
+                                         headers={"xi-api-key": key, "Content-Type": "application/json",
+                                                  "Accept": "audio/mpeg", "User-Agent": "vpixselle"})
+            data = urllib.request.urlopen(req, timeout=90).read()
+            if len(data) > 1500:
+                Path(path).write_bytes(data)
+                return True
+        except Exception as e:
+            print(f"  eleven attempt {attempt}: {type(e).__name__}: {str(e)[:140]}")
+            time.sleep(2 * attempt)
+    return False
+
+
+def probe_voice():
+    """True, якщо є хоч якийсь робочий голос (ElevenLabs за ключем або edge-tts)."""
+    return eleven_ready() or bool(E.probe_voice())
+
+
 def plan(spec, workdir, ff, use_voice=True):
     lines = [l["text"] for l in spec["lines"]]
     files, durs = [], []
     if use_voice:
+        spoken = [E.speak(ln) for ln in lines]
         provider = None
+        el_fail = not eleven_ready()
         for i, ln in enumerate(lines):
             f = Path(workdir) / f"v{i}.mp3"
-            rt, pt = E.prosody(i, len(lines), ln)
-            p = E.synth(E.speak(ln), f, rt, pt)
-            if not p:
-                files = []
-                break
-            provider = p
+            ok = False
+            if not el_fail:
+                ok = synth_eleven(spoken[i], f, spoken[i - 1] if i else "", spoken[i + 1] if i + 1 < len(lines) else "")
+                if ok:
+                    provider = "elevenlabs"
+                else:
+                    el_fail = True      # ключ/ліміт не працює: решту роблю резервним голосом, але ролик тоді змішаний, тому перезапис нижче
+            if not ok:
+                if provider == "elevenlabs":
+                    files = []          # не мішаємо голоси в одному ролику: все спочатку резервним
+                    break
+                rt, pt = E.prosody(i, len(lines), ln)
+                p = E.synth(spoken[i], f, rt, pt)
+                if not p:
+                    files = []
+                    break
+                provider = p
             files.append(f)
             durs.append((E.audio_len(f, ff) or E.heur_len(ln)) + 0.2)
+        if use_voice and not files and provider == "elevenlabs":
+            # ElevenLabs зламався посеред ролика: перегенеруємо всі репліки резервним голосом
+            files, durs = [], []
+            for i, ln in enumerate(lines):
+                f = Path(workdir) / f"v{i}.mp3"
+                rt, pt = E.prosody(i, len(lines), ln)
+                p = E.synth(spoken[i], f, rt, pt)
+                if not p:
+                    files = []
+                    break
+                provider = p
+                files.append(f)
+                durs.append((E.audio_len(f, ff) or E.heur_len(ln)) + 0.2)
         if files:
             print(f"  voice: {provider}, {len(files)} lines")
     if not files:
