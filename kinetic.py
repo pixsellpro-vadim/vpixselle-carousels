@@ -37,7 +37,7 @@ POSES = ["ch_s3_talk", "ch_s2_present", "ch_s4_lean", "ch_s3_hips", "ch_s1_think
 
 def version():
     h = hashlib.sha1()
-    for n in ("kinetic.py", HTML):
+    for n in ("kinetic.py", HTML, "light_scenes.html"):
         p = HERE / n
         if p.exists():
             h.update(p.read_bytes())
@@ -494,7 +494,10 @@ def make(text, key, d, make_music=None, voice_state=None, budget=None):
     simple = parse_simple(text)
     if not simple:
         return False
-    spec = expand(simple, key)
+    if simple.get("html") in ("light_scenes.html",):     # повна специфікація шаблону C
+        spec = simple
+    else:
+        spec = expand(simple, key)
     if not spec:
         print("  kinetic: сценарій не пройшов перевірку")
         return False
