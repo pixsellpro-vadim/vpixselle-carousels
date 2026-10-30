@@ -214,6 +214,116 @@ def expand(simple, key="00000000"):
             "cover": {"tag": clean(simple.get("tag"), 28).upper()}, "end": {"key": ckey}, "tseed": int(key[2], 16) % 6, "lines": out_lines}
 
 
+LIGHT = "light_scenes.html"
+
+
+def _mark_key(t, big):
+    """Позначає ключове слово зірочками для наїзду камери: слово з big або найдовше слово."""
+    words = t.split()
+    if not words or "*" in t:
+        return t
+    idx = None
+    if big:
+        b = big.lower().split()[0][:5]
+        for k, w in enumerate(words):
+            if w.lower().strip(".,?!:;«»")[:5] == b:
+                idx = k
+                break
+    if idx is None:
+        idx = max(range(len(words)), key=lambda k: len(words[k].strip(".,?!:;«»")))
+    w = words[idx]
+    lead = w[:len(w) - len(w.lstrip("«"))]
+    body = w[len(lead):]
+    core = body.rstrip(".,?!:;…»")
+    words[idx] = lead + "*" + core + "*" + body[len(core):]
+    return " ".join(words)
+
+
+def expand_light(simple, key="00000000"):
+    """Проста специфікація C1 -> шаблон C (світлий, як референс): ті самі репліки, нові екрани."""
+    lines_in = [l for l in simple.get("lines", []) if isinstance(l, dict) and clean(l.get("t"))][:14]
+    if len(lines_in) < 2:
+        return None
+    ckey = clean(simple.get("key"), 14).upper() or KEY_DEFAULT
+    cta = clean(simple.get("cta"), 110) or f"Хочете так само? Напишіть мені в приват слово «{ckey}»."
+    m = re.search(r"«([^»]{2,14})»", cta)
+    if m:
+        ckey = m.group(1).strip().upper()
+    hook = clean(simple.get("hook"), 90)
+    n = len(lines_in)
+    mid = max(2, n // 2)
+    out = []
+    for i, l in enumerate(lines_in):
+        t = clean(l.get("t"), 420)
+        bg = str(l.get("bg") or "dm").lower()
+        items = [clean(x, 48) for x in (l.get("items") or []) if clean(x, 48)][:6]
+        label = clean(l.get("label"), 34)
+        big = clean(l.get("big"), 16)
+        sc = None
+        if i == 0:
+            sc = {"type": "title", "text": hook or t, "tag": clean(simple.get("tag"), 28).upper()}
+        elif bg in ("dm", "phone", "notifs") and items:
+            msgs = []
+            for k, x in enumerate(items[:5]):
+                shop = x.lstrip().startswith(">")
+                cl = x.lstrip().startswith("<")
+                txt = x.lstrip("<> ").strip()
+                who = "s" if shop else "c" if cl else ("s" if (bg == "phone" and k % 2) else "c")
+                msgs.append({"who": who, "t": txt[:60]})
+            sc = {"type": "chat", "name": label or "Клієнтка", "msgs": msgs}
+        elif bg in ("checklist", "kanban", "sheet", "serp") and items:
+            rows = []
+            for k, x in enumerate(items[:6]):
+                kind = "ok" if x.startswith("+") else "bad" if x.startswith("-") else "n"
+                a_, _, b_ = x.lstrip("+- ").partition("|")
+                rows.append({"t": a_.strip()[:44], "s": b_.strip()[:24], "k": kind})
+            title = label or {"kanban": "Заявки", "sheet": "Товари", "serp": "Пошук"}.get(bg, "Чек-лист")
+            hl = None
+            if bg == "serp":
+                try:
+                    hl = int(float(str(l.get("num")))) - 1
+                except Exception:
+                    hl = None
+            sc = {"type": "list", "title": title, "rows": rows, "icon": {"kanban": "cart", "sheet": "form", "serp": "globe"}.get(bg, "check"), "hl": hl}
+        elif bg in ("flow", "steps") and len(items) >= 2:
+            sc = {"type": "steps", "title": label or ("Як це працює" if bg == "steps" else "Сценарій"), "items": [x.lstrip("+- ") for x in items[:5]]}
+        elif bg == "compare" and items:
+            A_, B_ = [], []
+            for x in items[:4]:
+                a_, _, b_ = x.partition("|")
+                if a_.strip():
+                    A_.append(a_.strip()[:40])
+                if b_.strip():
+                    B_.append(b_.strip()[:40])
+            if A_ or B_:
+                sc = {"type": "compare", "a": A_, "b": B_}
+        elif bg == "stat" and l.get("num") is not None:
+            try:
+                num = int(float(str(l.get("num")).replace(" ", "").replace(",", ".")))
+                unit = clean(l.get("unit"), 24)
+                sc = {"type": "stat", "num": num, "suf": "", "big": unit or label or "", "label": label or unit, "src": "", "icons": False}
+            except Exception:
+                sc = None
+        elif bg == "chart" and items:
+            trend = str(l.get("trend") or ("down" if l.get("bad") else "up")).lower()
+            n_ = min(len(items), 6)
+            vals = [round({"up": .25 + .7 * k / max(n_ - 1, 1), "down": .95 - .7 * k / max(n_ - 1, 1)}.get(trend, .55), 3) for k in range(n_)]
+            sc = {"type": "bars", "title": label, "down": trend == "down", "items": [{"l": items[k][:14], "v": vals[k]} for k in range(n_)]}
+        if sc is None:
+            sc = {"type": "title", "text": (("*" + big + "*") if big else (label or t[:60]))}
+        line = {"text": _mark_key(t, big), "sc": sc}
+        if big and l.get("bad", True):
+            line["fx"] = {"shake": True}
+        if i == 0:
+            line["char"] = {"img": "ch_s1_point", "top": 860}
+        elif i == mid:
+            line["char"] = {"img": "ch_s2_present", "h": 470, "top": 1450, "in": 0.8, "say": (big.lower() + "!") if big else "ось так!"}
+        out.append(line)
+    out.append({"text": _mark_key(cta, ckey), "sc": {"type": "cta", "word": ckey, "reply": "Привіт! Покажу, що можна автоматизувати"},
+                "char": {"img": "ch_s1_point", "top": 900, "in": 0.4, "say": "чекаю!"}})
+    return {"engine": "light", "html": LIGHT, "nomusic": True, "sfx_scale": 0.8, "lines": out}
+
+
 # ---------------------------------------------------------------- таймлайн та звук
 
 # ---------------------------------------------------------------- голос: ElevenLabs (живий) -> резерв edge-tts
@@ -496,6 +606,8 @@ def make(text, key, d, make_music=None, voice_state=None, budget=None):
         return False
     if simple.get("html") in ("light_scenes.html",):     # повна специфікація шаблону C
         spec = simple
+    elif (HERE / "light_on.txt").exists():    # шаблон C для всіх нових роликів
+        spec = expand_light(simple, key)
     else:
         spec = expand(simple, key)
     if not spec:
