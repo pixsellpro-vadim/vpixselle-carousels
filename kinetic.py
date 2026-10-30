@@ -409,7 +409,7 @@ def get_events(spec_cfg, tl):
     with sync_playwright() as p:
         br = E.launch(p)
         pg = br.new_page(viewport={"width": W, "height": H})
-        pg.goto((HERE / HTML).as_uri())
+        pg.goto((HERE / spec_cfg.get("html", HTML)).as_uri())
         pg.evaluate("Promise.all([document.fonts.load('800 40px InterX'),document.fonts.load('600 40px InterX')])")
         pg.evaluate("([c,t])=>START(c,t)", [spec_cfg, tl])
         pg.evaluate("window.READY")
@@ -432,7 +432,7 @@ def capture(spec_cfg, tl, total, audio, out_mp4, ff, frames_dir=None, frame_time
     with sync_playwright() as p:
         br = E.launch(p)
         pg = br.new_page(viewport={"width": W, "height": H}, device_scale_factor=1)
-        pg.goto((HERE / HTML).as_uri())
+        pg.goto((HERE / spec_cfg.get("html", HTML)).as_uri())
         pg.evaluate("Promise.all([document.fonts.load('800 40px InterX'),document.fonts.load('600 40px InterX')])")
         pg.evaluate("([c,t])=>START(c,t)", [spec_cfg, tl])
         pg.evaluate("window.READY")
