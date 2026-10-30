@@ -35,9 +35,9 @@ POSES = ["ch_s3_talk", "ch_s2_present", "ch_s4_lean", "ch_s3_hips", "ch_s1_think
 
 # ---------------------------------------------------------------- версія й розбір специфікації
 
-def version():
+def version(html=HTML):
     h = hashlib.sha1()
-    for n in ("kinetic.py", HTML, "light_scenes.html"):
+    for n in ("kinetic.py", html):
         p = HERE / n
         if p.exists():
             h.update(p.read_bytes())
@@ -501,7 +501,7 @@ def make(text, key, d, make_music=None, voice_state=None, budget=None):
     if not spec:
         print("  kinetic: сценарій не пройшов перевірку")
         return False
-    ver = version()
+    ver = version(spec.get("html", HTML))
     d = Path(d)
     voice_ok = voice_state.get("ok") if voice_state else False
     names = [f"kx_{ver}_v.mp4"] + ([] if voice_ok else [f"kx_{ver}_s.mp4"])
