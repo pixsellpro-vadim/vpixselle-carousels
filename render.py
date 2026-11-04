@@ -432,6 +432,11 @@ def main():
                 seen.add(key)
                 render_post(text, key, out)
                 done += 1
+    try:  # каруселі з таблиці «Threads публікатор» (Make B2): site/t/p<№>/s1..s6.jpg
+        import table_carousels as TC
+        print("table carousels:", TC.render_all(out))
+    except Exception as e:
+        print("table carousels failed:", type(e).__name__, str(e)[:200])
     print(f"rendered posts: {done}")
 
 

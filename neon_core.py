@@ -236,7 +236,8 @@ def render(slides, fmt, w, h, idx, total, pose, key="0" * 8):
     while size >= minimum:
         font = ImageFont.truetype(HAND, size)
         lines, space = _layout(probe, toks, font, tw - 20)
-        if len(lines) * size * 0.98 <= th - 30:
+        widest = max([probe.textlength(wd, font=font) for wd, _ in toks if wd != "\n"] or [0])
+        if len(lines) * size * 0.98 <= th - 30 and widest <= tw - 24:  # слово не має вилазити за рамку
             break
         size -= 2
     font = ImageFont.truetype(HAND, size)
