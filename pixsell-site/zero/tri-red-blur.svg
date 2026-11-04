@@ -1,0 +1,1 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><defs><filter id="f" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7"/></filter></defs><polygon points="70,50 250,150 70,250" fill="#EE1A24" stroke="#EE1A24" stroke-width="34" stroke-linejoin="round" opacity="0.95" filter="url(#f)"/></svg>
