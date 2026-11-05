@@ -428,10 +428,4 @@ html.js .px .rv.in{opacity:1;transform:none}
 @media(max-width:1180px){.px .hd .b{display:none}}
 .px .fig:before{z-index:0}
 .px .fig>div{position:relative;z-index:1}
-.px [hidden]{display:none!important}
-.px .fcd .lead.sm{font-size:15px;margin:0 0 16px;color:var(--mut)}
-.px .fcd .b{width:100%;justify-content:center;text-align:center}
-.px .nbx{margin-top:12px;font-size:12px;opacity:.7}
-.px .res .row{flex-wrap:wrap;gap:10px}
 @media(max-width:980px){sp-live-chat{transform:translateY(-72px)}}
-.px .fin .fcd .b,.px .fcd.card .b{background:#EE1A24;color:#fff}
