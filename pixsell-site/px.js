@@ -35,7 +35,7 @@ var SPC='sp_popup_60b075a6-63bc-4406-80fc-c57a649b483f',TGL=h.tg||'https://t.me/
 var px=d.createElement('button');px.type='button';px.hidden=!0;px.className=SPC;px.setAttribute('aria-hidden','true');px.tabIndex=-1;root.appendChild(px);
 function openForm(){track('Contact',{content_name:root.dataset.page});if(window.pxSp)px.click();else window.open(TGL,'_blank','noopener')}
 d.addEventListener('click',function(e){
-var o=e.target.closest('[data-open]');if(o){e.preventDefault();openForm();return}
+var o=e.target.closest('[data-open]');if(o){if(window.pxSp){track('Contact',{content_name:root.dataset.page});return}e.preventDefault();openForm();return}
 var by=e.target.closest('[data-buy]');if(by){e.preventDefault();var k=by.dataset.buy;track('InitiateCheckout',{content_name:NAME[k],value:PRICE[k],currency:'UAH'});if(h.pay&&h.pay[k])location.href=h.pay[k];else openForm();return}
 if(e.target.closest('a[href^="tel:"],a[href*="t.me"],a[href^="viber:"]'))track('Contact',{content_name:root.dataset.page})});
 /* quiz */
