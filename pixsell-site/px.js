@@ -52,8 +52,8 @@ wc(!w.classList.contains('open'))})
 d.addEventListener('click',function(e){if(!w.contains(e.target))wc(!1)})
 addEventListener('keydown',function(e){e.key==='Escape'&&wc(!1)})
 var cb=w.querySelector('.mw-c'),sr,tries=0
-function lc(){var el=d.querySelector('sp-live-chat'),r=el&&el.shadowRoot,f=r&&r.querySelector('.widget-fab'),wr=r&&r.querySelector('.widget-wrapper')
-if(!f||!wr){if(++tries<200)setTimeout(lc,150)
+function lc(){var el=d.querySelector('sp-live-chat'),r=el&&el.shadowRoot,wr=r&&r.querySelector('.widget-wrapper')
+if(!wr||!r.querySelector('main.root')){if(++tries<200)setTimeout(lc,150)
 return}
 sr=r
 var st=d.createElement('style')
