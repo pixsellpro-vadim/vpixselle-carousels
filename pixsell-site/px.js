@@ -57,7 +57,7 @@ if(!wr||!r.querySelector('main.root')){if(++tries<200)setTimeout(lc,150)
 return}
 sr=r
 var st=d.createElement('style')
-st.textContent='.widget-fab,.widget-fab-shadow{display:none!important}'
+st.textContent='.widget-fab,.widget-fab-shadow{display:none!important}main.root,.widget-wrapper{--theme-color:#16A34A!important}'
 r.appendChild(st)
 r.querySelector('main.root').style.setProperty('--theme-color','#16A34A')
 function fix(){var c=wr.className
