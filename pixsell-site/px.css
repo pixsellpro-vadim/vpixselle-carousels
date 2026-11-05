@@ -429,3 +429,11 @@ html.js .px .rv.in{opacity:1;transform:none}
 .px .fig:before{z-index:0}
 .px .fig>div{position:relative;z-index:1}
 @media(max-width:980px){sp-live-chat{transform:translateY(-72px)}}
+
+.px .mw{position:fixed;right:16px;bottom:20px;z-index:47;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.px .mw-b{width:58px;height:58px;border-radius:50%;border:0;background:#EE1A24;box-shadow:0 8px 24px rgba(238,26,36,.4);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.px .mw-b .x{display:none}.px .mw.open .mw-b .x{display:block}.px .mw.open .mw-b .o{display:none}
+.px .mw-l{display:none;flex-direction:column;align-items:flex-end;gap:8px}.px .mw.open .mw-l{display:flex}
+.px .mw-i{display:flex;align-items:center;gap:10px;background:#fff;border-radius:99px;padding:6px 18px 6px 6px;box-shadow:0 6px 20px rgba(0,0,0,.18);font-weight:800;font-size:14px;color:#111}
+.px .mw-i i{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none}
+@media(max-width:980px){.px .mw{bottom:80px;right:12px}}
