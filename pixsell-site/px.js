@@ -14,9 +14,9 @@ function track(t,o){try{var s=EV[t];window.fbq&&fbq('track',s[0],o||{});window.t
 /* utm */
 var utm={};try{var qp=new URLSearchParams(location.search);['utm_source','utm_medium','utm_campaign','utm_content','utm_term','ttclid','fbclid'].forEach(function(k){qp.get(k)&&(utm[k]=qp.get(k))});if(Object.keys(utm).length)ss.set('px_utm',JSON.stringify(utm));else utm=JSON.parse(ss.get('px_utm')||'{}')}catch(e){}
 /* mobile menu */
-var bg=$('.bg'),mm=$('.mm');
-function closeMenu(){if(mm){mm.classList.remove('open');bg&&bg.setAttribute('aria-expanded','false')}}
-if(bg&&mm){bg.addEventListener('click',function(){var o=mm.classList.toggle('open');bg.setAttribute('aria-expanded',o)});$$('a',mm).forEach(function(a){a.addEventListener('click',closeMenu)});addEventListener('resize',function(){if(innerWidth>980)closeMenu()})}
+var bg=$('.mn'),mm=$('.mm');
+function closeMenu(){if(mm){mm.classList.remove('open');d.documentElement.classList.remove('mo');bg&&bg.setAttribute('aria-expanded','false')}}
+if(bg&&mm){bg.addEventListener('click',function(){var o=mm.classList.toggle('open');d.documentElement.classList.toggle('mo',o);bg.setAttribute('aria-expanded',o)});$$('a',mm).forEach(function(a){a.addEventListener('click',closeMenu)});addEventListener('resize',function(){if(innerWidth>1060)closeMenu()})}
 /* dropdown */
 var dd=$('.dd'),ddb=dd&&$('button',dd);
 if(dd){ddb.addEventListener('click',function(e){e.stopPropagation();var o=dd.classList.toggle('open');ddb.setAttribute('aria-expanded',o)});d.addEventListener('click',function(e){if(!e.target.closest('.dd')){dd.classList.remove('open');ddb.setAttribute('aria-expanded','false')}});$$('a',dd).forEach(function(a){a.addEventListener('click',function(){dd.classList.remove('open')})})}
@@ -28,6 +28,8 @@ if('IntersectionObserver' in window){var io=new IntersectionObserver(function(es
 setTimeout(function(){rv.forEach(function(el){el.classList.add('in')})},4000);
 /* how-it-works: click/hover to switch step (no scroll pinning) */
 $$('.scene').forEach(function(sc){var li=$$('.steps li',sc),pn=$$('.pane>div',sc);function set(i){li.forEach(function(x,j){x.classList.toggle('on',j===i)});pn.forEach(function(x,j){x.classList.toggle('on',j===i)})}li.forEach(function(x,i){x.addEventListener('click',function(){set(i)});x.addEventListener('mouseenter',function(){if(matchMedia('(hover:hover)').matches)set(i)})})});
+/* generic tabs */
+$$('[data-tabs]').forEach(function(t){var b=$$('.tb',t),p=$$('.tp',t);function set(i){b.forEach(function(x,j){x.classList.toggle('on',j===i)});p.forEach(function(x,j){x.classList.toggle('on',j===i)})}b.forEach(function(x,i){x.addEventListener('click',function(){set(i)})})});
 /* modal */
 var md=$('.md');
 function openMd(p,t,s){if(!md)return;var f=$('form',md);if(f){f.dataset.p=p||'';f.dataset.f=p&&PRICE[p]?'order':'lead';f.style.display='';var hh=$('h3',md);hh&&t&&(hh.textContent=t);var ld=$('.lead',md);ld&&s&&(ld.textContent=s);var b=$('button[type=submit]',f);b&&(b.disabled=!1,b.textContent='Надіслати')}var ok=$('.ok2',md);ok&&ok.classList.remove('on');md.classList.add('open');setTimeout(function(){var i=$('input',md);i&&i.focus()},60)}
