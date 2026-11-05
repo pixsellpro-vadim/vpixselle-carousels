@@ -438,3 +438,4 @@ html.js .px .rv.in{opacity:1;transform:none}
 .px .mw-i i{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none}
 @media(max-width:980px){.px .mw{bottom:80px;right:12px}}
 @media(max-width:640px){.px[data-page]:not([data-page=thanks]) .hero .eyebrow{display:none}.px .hero h1{margin-top:0}}
+.px .fig:before,.px .vis:before,.px .guess .fg:before,.px .team .pf:after{display:none!important}
