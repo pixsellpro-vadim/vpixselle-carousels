@@ -10,23 +10,39 @@ on:
       dry_run:
         description: "1 = лише лог, без запису в таблицю"
         default: "0"
+      chain:
+        description: "1 = після запуску дочекатись початку наступної години і запустити наступний (ланцюжок 24/7)"
+        default: "0"
 permissions:
   contents: read
+  actions: write
 concurrency:
   group: prom-parser
   cancel-in-progress: false
 jobs:
   parse:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 85
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Parse Prom contacts
+        timeout-minutes: 40
         env:
           SHEET_WEBAPP_URL: ${{ secrets.SHEET_WEBAPP_URL }}
           MAX_COMPANIES: ${{ github.event.inputs.max_companies || '100' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
         run: python prom_parser/parse.py
+      - name: Wait for next hour and start next run (chain)
+        if: ${{ always() && !cancelled() && github.event.inputs.chain == '1' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          now=$(date +%s)
+          next=$(( (now / 3600 + 1) * 3600 ))
+          if [ $((next - now)) -lt 120 ]; then next=$((next + 3600)); fi
+          echo "sleep $((next - now)) s until $(date -u -d @$next)"
+          sleep $((next - now))
+          gh workflow run prom-parser.yml --ref "${{ github.ref_name }}" -f chain=1 -f max_companies=100 -f dry_run=0 -R "${{ github.repository }}"
