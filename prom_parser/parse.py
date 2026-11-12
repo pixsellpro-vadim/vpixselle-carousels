@@ -29,7 +29,8 @@ class Blocked(Exception):
 def get(url, tries=3):
     for k in range(tries):
         time.sleep(DELAY + random.random() * DELAY * 0.6)
-        req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "uk-UA,uk;q=0.9"})
+        req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "uk-UA,uk;q=0.9",
+                                                   "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"})
         try:
             with urllib.request.urlopen(req, timeout=40) as r:
                 return r.status, r.geturl(), r.read().decode("utf-8", "replace")
@@ -149,6 +150,12 @@ def main():
                     break
                 comps = companies_from_category(htm)
                 print(f"  page {n}: html {len(htm)} bytes, company blocks {htm.count('\"company\":{\"id\":')}, parsed {len(comps)}")
+                if not comps and len(htm) < 60000:
+                    # не справжня сторінка категорії (антибот/заглушка) - не позначаємо "готово"
+                    snippet = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", htm))[:300]
+                    print(f"  page {n}: suspicious short page, stop. title/text: {snippet}")
+                    pages_used = MAX_PAGES
+                    break
                 if not comps:
                     api_post({"cats": [{"row": c["row"], "next_page": n, "status": "готово"}], "rows": []})
                     print(f"[{c['category']} / {c['subcategory']}] page {n}: empty -> done")
