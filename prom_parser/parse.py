@@ -142,8 +142,17 @@ def main():
             n = int(c.get("next_page") or 1)
             last = int(c.get("pages_max") or 50)
             while n <= last and pages_used < MAX_PAGES and done_companies < MAX_COMPANIES:
-                st, _, htm = get(page_url(c["url"], n))
+                st, final, htm = get(page_url(c["url"], n))
                 pages_used += 1
+                host = urllib.parse.urlparse(final).netloc
+                if st == 404 or (st == 200 and host not in ("prom.ua", "www.prom.ua")):
+                    # мертва категорія (404) або інший домен (напр. love.prom.ua): n=1 -> пропуск (next_page=0), n>1 -> кінець
+                    skip = n == 1
+                    api_post({"cats": [{"row": c["row"], "next_page": 0 if skip else n, "status": "готово"}], "rows": []})
+                    print(f"[{c['category']} / {c['subcategory']}] page {n}: HTTP {st}, host {host} -> "
+                          f"{'skip category (next_page=0)' if skip else 'end of category'}")
+                    n = last + 1
+                    break
                 if st != 200:
                     print(f"[{c['category']} / {c['subcategory']}] page {n}: HTTP {st}, stop this run")
                     pages_used = MAX_PAGES
