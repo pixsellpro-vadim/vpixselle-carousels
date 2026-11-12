@@ -69,28 +69,47 @@ def page_url(url, n):
     return url if n <= 1 else f"{url};{n}"
 
 
+def _jstr(seg, key):
+    m = re.search(r'"' + key + r'":("(?:[^"\\]|\\.)*"|null)', seg)
+    if not m or m.group(1) == "null":
+        return ""
+    return json.loads(m.group(1))
+
+
 def companies_from_category(htm):
     out, seen = [], set()
-    for m in re.finditer(r'"company":\{"id":(\d+),"__typename":"Company","name":"((?:[^"\\]|\\.)*)","slug":"([^"]*)","regionName":(null|"(?:[^"\\]|\\.)*")', htm):
+    for m in re.finditer(r'"company":\{"id":(\d+)', htm):
         cid = m.group(1)
         if cid in seen:
             continue
+        seg = htm[m.end():m.end() + 1500]
+        if '"__typename":"Company"' not in seg[:60]:
+            continue
         seen.add(cid)
-        name = json.loads('"' + m.group(2) + '"')
-        region = json.loads(m.group(4)) if m.group(4) != "null" else ""
-        out.append({"id": cid, "name": name, "slug": m.group(3), "region": region or ""})
+        out.append({"id": cid, "name": _jstr(seg, "name"), "slug": _jstr(seg, "slug"),
+                    "region": _jstr(seg, "regionName")})
     return out
 
 
-def product_total(cid, slug):
+def company_info(cid, slug):
+    """Сторінка компанії на Prom: кількість товарів і справжня адреса сайту продавця (webSiteUrl)."""
     st, _, htm = get(f"https://prom.ua/ua/c{cid}-{slug or 'company'}.html")
     m = re.search(r'"total":(\d+)', htm)
-    return int(m.group(1)) if m else ""
+    total = int(m.group(1)) if m else ""
+    if total == 10000:
+        total = "10000+"          # Prom показує не більше 10 000
+    w = re.search(r'"webSiteUrl":"([^"]+)"', htm)
+    site = json.loads('"' + w.group(1) + '"') if w else f"https://cs{cid}.prom.ua/ua/"
+    return total, site
 
 
-def contacts(cid):
-    st, final, htm = get(f"https://cs{cid}.prom.ua/ua/contacts")
-    if st != 200 or not htm:
+def contacts(cid, site):
+    base = site.split("#")[0].rstrip("/")
+    base = re.sub(r"/(ua|ru)$", "", base)
+    st, final, htm = get(f"{base}/ua/contacts")
+    if (st != 200 or not htm or urllib.parse.urlparse(final).netloc == "prom.ua") and "cs" not in base:
+        st, final, htm = get(f"https://cs{cid}.prom.ua/ua/contacts")
+    if st != 200 or not htm or urllib.parse.urlparse(final).netloc == "prom.ua":
         return None
     host = urllib.parse.urlparse(final).netloc
     site = f"https://{host}/"
@@ -124,7 +143,12 @@ def main():
             while n <= last and pages_used < MAX_PAGES and done_companies < MAX_COMPANIES:
                 st, _, htm = get(page_url(c["url"], n))
                 pages_used += 1
-                comps = companies_from_category(htm) if st == 200 else []
+                if st != 200:
+                    print(f"[{c['category']} / {c['subcategory']}] page {n}: HTTP {st}, stop this run")
+                    pages_used = MAX_PAGES
+                    break
+                comps = companies_from_category(htm)
+                print(f"  page {n}: html {len(htm)} bytes, company blocks {htm.count('\"company\":{\"id\":')}, parsed {len(comps)}")
                 if not comps:
                     api_post({"cats": [{"row": c["row"], "next_page": n, "status": "готово"}], "rows": []})
                     print(f"[{c['category']} / {c['subcategory']}] page {n}: empty -> done")
@@ -137,12 +161,12 @@ def main():
                     if done_companies >= MAX_COMPANIES:
                         break
                     known.add(co["id"])
-                    ct = contacts(co["id"]) or {}
-                    total = product_total(co["id"], co["slug"])
+                    total, site0 = company_info(co["id"], co["slug"])
+                    ct = contacts(co["id"], site0) or {}
                     rows.append({
                         "category": c["category"], "subcategory": c["subcategory"],
                         "company_id": co["id"], "shop": co["name"],
-                        "site": ct.get("site") or f"https://cs{co['id']}.prom.ua/",
+                        "site": ct.get("site") or site0,
                         "products": total, "phone": ct.get("phone", ""), "email": ct.get("email", ""),
                         "city": ct.get("city") or re.sub(r"^м\.\s*", "", co["region"]),
                         "added": datetime.now(KYIV).strftime("%Y-%m-%d %H:%M"),
