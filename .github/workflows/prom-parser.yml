@@ -36,7 +36,7 @@ jobs:
           fails=0
           while [ "$SECONDS" -lt "$end" ]; do
             rc=0
-            python prom_parser/parse.py || rc=$?
+            python -u prom_parser/parse.py || rc=$?
             if [ "$rc" -eq 0 ]; then fails=0; continue; fi
             echo "parse.py exit code $rc (3 = nothing to do, 4 = blocked/stub page, other = error)"
             if [ "$rc" -eq 3 ] || [ "$rc" -eq 4 ]; then break; fi
