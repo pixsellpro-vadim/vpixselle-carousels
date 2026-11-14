@@ -185,7 +185,11 @@ def main():
     cats = api_get("categories").get("categories", [])
     known = set(str(x) for x in api_get("known").get("ids", []))
     print(f"categories todo: {len(cats)}, known companies: {len(known)}")
+    if not cats:
+        print("nothing to do: all categories done")
+        sys.exit(3)
     done_companies, pages_used = 0, 0
+    stopped = False                  # зупинка через блокування/заглушку - зовнішній цикл має завершитися
     try:
         for c in cats:
             n = int(c.get("next_page") or 1)
@@ -205,6 +209,7 @@ def main():
                 if st != 200:
                     print(f"[{c['category']} / {c['subcategory']}] page {n}: HTTP {st}, stop this run")
                     pages_used = MAX_PAGES
+                    stopped = True
                     break
                 comps = companies_from_category(htm)
                 print(f"  page {n}: html {len(htm)} bytes, company blocks {htm.count('\"company\":{\"id\":')}, parsed {len(comps)}")
@@ -213,6 +218,7 @@ def main():
                     snippet = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", htm))[:300]
                     print(f"  page {n}: suspicious short page, stop. title/text: {snippet}")
                     pages_used = MAX_PAGES
+                    stopped = True
                     break
                 if not comps:
                     api_post({"cats": [{"row": c["row"], "next_page": n, "status": "готово"}], "rows": []})
@@ -255,7 +261,10 @@ def main():
                 break
     except Blocked as e:
         print("STOP: Prom blocks requests:", e)
+        stopped = True
     print(f"done: companies {done_companies}, pages {pages_used}")
+    if stopped:
+        sys.exit(4)
 
 
 if __name__ == "__main__":
