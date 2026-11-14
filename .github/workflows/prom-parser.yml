@@ -18,16 +18,27 @@ concurrency:
 jobs:
   parse:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Parse Prom contacts
-        timeout-minutes: 40
+        timeout-minutes: 340
         env:
           SHEET_WEBAPP_URL: ${{ secrets.SHEET_WEBAPP_URL }}
           MAX_COMPANIES: ${{ github.event.inputs.max_companies || '100' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
-        run: python prom_parser/parse.py
+        run: |
+          # довгий запуск: партії по MAX_COMPANIES підряд до ~5 год; cron лише підстраховує, якщо запуск обірвався
+          end=$((SECONDS + 18000))
+          while [ "$SECONDS" -lt "$end" ]; do
+            rc=0
+            python prom_parser/parse.py || rc=$?
+            if [ "$rc" -ne 0 ]; then
+              echo "parse.py exit code $rc - stop loop (3 = nothing to do, 4 = blocked/stub page)"
+              if [ "$rc" -ne 3 ] && [ "$rc" -ne 4 ]; then exit "$rc"; fi
+              break
+            fi
+          done
