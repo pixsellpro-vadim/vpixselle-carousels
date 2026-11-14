@@ -59,12 +59,33 @@ def get_retry(url, need=None, pauses=(8, 20)):
         time.sleep(pauses[k])
 
 
-API_PAUSES = (10, 30, 60)   # паузи між повторами запитів до Apps Script, с
+API_PAUSES = (5, 10, 20, 30, 60)   # паузи між повторами запитів до Apps Script, с (6 спроб)
+GET_TIMEOUT, POST_TIMEOUT = 30, 60  # Apps Script відповідає за 1-3 с; довге очікування = завислого з'єднання, краще нова спроба
+KNOWN_CACHE = "/tmp/prom_known.json"   # кеш відомих ID у межах одного job, щоб не смикати повільний знімок `known`
+
+
+def load_known():
+    try:
+        with open(KNOWN_CACHE, encoding="utf-8") as f:
+            ids = json.load(f)
+        if ids:
+            return set(str(x) for x in ids)
+    except Exception:
+        pass
+    return set(str(x) for x in api_get("known").get("ids", []))
+
+
+def save_known(known):
+    try:
+        with open(KNOWN_CACHE, "w", encoding="utf-8") as f:
+            json.dump(sorted(known), f)
+    except Exception as e:
+        print("known cache:", e)
 
 
 def _api_get_once(action):
     sep = "&" if "?" in WEBAPP else "?"
-    with urllib.request.urlopen(f"{WEBAPP}{sep}action={action}", timeout=90) as r:
+    with urllib.request.urlopen(f"{WEBAPP}{sep}action={action}", timeout=GET_TIMEOUT) as r:
         return json.loads(r.read().decode())
 
 
@@ -88,7 +109,7 @@ def api_post(payload):
         data = json.dumps(payload, ensure_ascii=False).encode()
         req = urllib.request.Request(WEBAPP, data=data, headers={"Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=120) as r:
+            with urllib.request.urlopen(req, timeout=POST_TIMEOUT) as r:
                 return json.loads(r.read().decode())
         except Exception as e:
             print(f"api_post: {type(e).__name__}: {e} (спроба {k + 1}/{len(API_PAUSES) + 1})")
@@ -183,7 +204,7 @@ def main():
     if not WEBAPP:
         sys.exit("SHEET_WEBAPP_URL is empty")
     cats = api_get("categories").get("categories", [])
-    known = set(str(x) for x in api_get("known").get("ids", []))
+    known = load_known()
     print(f"categories todo: {len(cats)}, known companies: {len(known)}")
     if not cats:
         print("nothing to do: all categories done")
@@ -252,6 +273,8 @@ def main():
                 nxt = n + 1 if full else n
                 status = "готово" if nxt > last else "в роботі"
                 api_post({"cats": [{"row": c["row"], "next_page": nxt, "status": status}], "rows": rows})
+                if rows:
+                    save_known(known)
                 print(f"[{c['category']} / {c['subcategory']}] page {n}: {len(comps)} companies, new {len(rows)}, "
                       f"with email {sum(1 for r in rows if r['email'])}")
                 if not full:
