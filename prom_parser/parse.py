@@ -215,7 +215,7 @@ def main():
                     rows.append({
                         "category": c["category"], "subcategory": c["subcategory"],
                         "company_id": co["id"], "shop": co["name"],
-                        "site": ct.get("site") or site0,
+                        "site": ct.get("site") or ("" if urllib.parse.urlparse(site0).netloc in ("prom.ua", "www.prom.ua") else site0),
                         "products": total, "phone": ct.get("phone", ""), "email": ct.get("email", ""),
                         "city": ct.get("city") or re.sub(r"^м\.\s*", "", co["region"]),
                         "added": datetime.now(KYIV).strftime("%Y-%m-%d %H:%M"),
