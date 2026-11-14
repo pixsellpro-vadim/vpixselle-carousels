@@ -48,6 +48,17 @@ def get(url, tries=3):
     return 0, url, ""
 
 
+def get_retry(url, need=None, pauses=(8, 20)):
+    """get() із повтором, якщо відповідь збійна: мережа/5xx або сторінка без очікуваного вмісту (заглушка антибота)."""
+    for k in range(len(pauses) + 1):
+        st, final, htm = get(url)
+        good = st == 200 and bool(htm) and (need is None or re.search(need, htm))
+        if good or st in (404, 410) or k == len(pauses):
+            return st, final, htm
+        print(f"  retry {k + 1}: {url} -> {st}, {len(htm)} bytes")
+        time.sleep(pauses[k])
+
+
 API_PAUSES = (10, 30, 60)   # паузи між повторами запитів до Apps Script, с
 
 
@@ -127,7 +138,9 @@ def companies_from_category(htm):
 
 def company_info(cid, slug):
     """Сторінка компанії на Prom: кількість товарів і справжня адреса сайту продавця (webSiteUrl)."""
-    st, _, htm = get(f"https://prom.ua/ua/c{cid}-{slug or 'company'}.html")
+    st, _, htm = get_retry(f"https://prom.ua/ua/c{cid}-{slug or 'company'}.html", need=r'"total":\d+|"webSiteUrl":')
+    if st != 200 or not re.search(r'"total":\d+|"webSiteUrl":', htm):
+        return None               # сторінку компанії не вдалося отримати - рядок не пишемо
     m = re.search(r'"total":(\d+)', htm)
     total = int(m.group(1)) if m else ""
     if total == 10000:
@@ -141,6 +154,9 @@ def contacts(cid, site):
     base = site.split("#")[0].rstrip("/")
     base = re.sub(r"/(ua|ru)$", "", base)
     st, final, htm = get(f"{base}/ua/contacts")
+    if 500 <= st < 600:
+        time.sleep(8)
+        st, final, htm = get(f"{base}/ua/contacts")
     if (st != 200 or not htm or urllib.parse.urlparse(final).netloc == "prom.ua") and "cs" not in base:
         st, final, htm = get(f"https://cs{cid}.prom.ua/ua/contacts")
     if st != 200 or not htm or urllib.parse.urlparse(final).netloc == "prom.ua":
@@ -209,8 +225,12 @@ def main():
                         continue
                     if done_companies >= MAX_COMPANIES:
                         break
+                    info = company_info(co["id"], co["slug"])
+                    if info is None:
+                        print(f"  skip {co['id']}: company page failed (will be retried if met again)")
+                        continue
                     known.add(co["id"])
-                    total, site0 = company_info(co["id"], co["slug"])
+                    total, site0 = info
                     ct = contacts(co["id"], site0) or {}
                     rows.append({
                         "category": c["category"], "subcategory": c["subcategory"],
