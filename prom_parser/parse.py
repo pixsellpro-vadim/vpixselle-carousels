@@ -48,20 +48,53 @@ def get(url, tries=3):
     return 0, url, ""
 
 
-def api_get(action):
+API_PAUSES = (10, 30, 60)   # паузи між повторами запитів до Apps Script, с
+
+
+def _api_get_once(action):
     sep = "&" if "?" in WEBAPP else "?"
-    with urllib.request.urlopen(f"{WEBAPP}{sep}action={action}", timeout=60) as r:
+    with urllib.request.urlopen(f"{WEBAPP}{sep}action={action}", timeout=90) as r:
         return json.loads(r.read().decode())
+
+
+def api_get(action, pauses=API_PAUSES):
+    """GET до веб-застосунку з повторами: Apps Script іноді відповідає довше за таймаут."""
+    for k in range(len(pauses) + 1):
+        try:
+            return _api_get_once(action)
+        except Exception as e:
+            print(f"api_get {action}: {type(e).__name__}: {e} (спроба {k + 1}/{len(pauses) + 1})")
+            if k == len(pauses):
+                raise
+            time.sleep(pauses[k])
 
 
 def api_post(payload):
     if DRY:
         print("DRY POST", json.dumps(payload, ensure_ascii=False)[:1500])
         return {"ok": True}
-    data = json.dumps(payload, ensure_ascii=False).encode()
-    req = urllib.request.Request(WEBAPP, data=data, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=120) as r:
-        return json.loads(r.read().decode())
+    for k in range(len(API_PAUSES) + 1):
+        data = json.dumps(payload, ensure_ascii=False).encode()
+        req = urllib.request.Request(WEBAPP, data=data, headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return json.loads(r.read().decode())
+        except Exception as e:
+            print(f"api_post: {type(e).__name__}: {e} (спроба {k + 1}/{len(API_PAUSES) + 1})")
+            if k == len(API_PAUSES):
+                raise
+            time.sleep(API_PAUSES[k])
+            rows = payload.get("rows") or []
+            if rows:
+                # таймаут міг настати вже після запису: не дублюємо рядки, що вже є в таблиці
+                try:
+                    ids = set(str(x) for x in api_get("known", pauses=()).get("ids", []))
+                    left = [r for r in rows if str(r["company_id"]) not in ids]
+                    if len(left) != len(rows):
+                        print(f"api_post: {len(rows) - len(left)} рядків уже записано, повторюю решту ({len(left)})")
+                    payload = {**payload, "rows": left}
+                except Exception as e2:
+                    print(f"api_post: перевірка known не вдалась: {e2}")
 
 
 def page_url(url, n):
