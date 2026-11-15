@@ -12,6 +12,7 @@ on:
         default: "0"
 permissions:
   contents: read
+  actions: write
 concurrency:
   group: prom-parser
   cancel-in-progress: false
@@ -25,15 +26,17 @@ jobs:
         with:
           python-version: "3.12"
       - name: Parse Prom contacts
-        timeout-minutes: 340
+        id: parse
+        timeout-minutes: 330
         env:
           SHEET_WEBAPP_URL: ${{ secrets.SHEET_WEBAPP_URL }}
           MAX_COMPANIES: ${{ github.event.inputs.max_companies || '100' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
         run: |
-          # довгий запуск: партії по MAX_COMPANIES підряд до ~5 год; cron лише підстраховує, якщо запуск обірвався
+          # довгий запуск: партії по MAX_COMPANIES підряд до ~5 год; далі наступний крок сам запускає новий run, поки є що парсити
           end=$((SECONDS + 18000))
           fails=0
+          rc=0
           while [ "$SECONDS" -lt "$end" ]; do
             rc=0
             python -u prom_parser/parse.py || rc=$?
@@ -41,6 +44,19 @@ jobs:
             echo "parse.py exit code $rc (3 = nothing to do, 4 = blocked/stub page, other = error)"
             if [ "$rc" -eq 3 ] || [ "$rc" -eq 4 ]; then break; fi
             fails=$((fails + 1))
-            if [ "$fails" -ge 5 ]; then echo "5 errors in a row - giving up"; exit "$rc"; fi
+            if [ "$fails" -ge 5 ]; then echo "5 errors in a row - giving up"; echo "rc=$rc" >> "$GITHUB_OUTPUT"; exit "$rc"; fi
             sleep 120
           done
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" -eq 3 ]; then echo "done=1" >> "$GITHUB_OUTPUT"; fi
+      - name: Continue until all categories are done
+        if: ${{ !cancelled() && steps.parse.outputs.done != '1' && github.event.inputs.dry_run != '1' }}
+        timeout-minutes: 15
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAX_COMPANIES: ${{ github.event.inputs.max_companies || '100' }}
+          PARSE_RC: ${{ steps.parse.outputs.rc }}
+        run: |
+          # блокування / заглушка Prom (код 4) - даємо Prom 10 хв перепочити перед наступним run
+          if [ "$PARSE_RC" = "4" ]; then sleep 600; fi
+          gh workflow run prom-parser.yml --ref "$GITHUB_REF_NAME" -f max_companies="$MAX_COMPANIES" -f dry_run=0
