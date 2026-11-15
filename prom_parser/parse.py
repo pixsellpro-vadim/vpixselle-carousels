@@ -26,6 +26,11 @@ class Blocked(Exception):
     pass
 
 
+def is_prom(url):
+    """Лише сам prom.ua: 403/429 там - справжнє блокування. Власні сайти продавців і cs*.prom.ua - ні."""
+    return urllib.parse.urlparse(url).netloc.lower() in ("prom.ua", "www.prom.ua")
+
+
 def get(url, tries=3):
     for k in range(tries):
         time.sleep(DELAY + random.random() * DELAY * 0.6)
@@ -36,6 +41,8 @@ def get(url, tries=3):
                 return r.status, r.geturl(), r.read().decode("utf-8", "replace")
         except urllib.error.HTTPError as e:
             if e.code in (403, 429):
+                if not is_prom(url):
+                    return e.code, url, ""     # сайт продавця закрив доступ - не блокування Prom, пропускаємо
                 if k == tries - 1:
                     raise Blocked(f"{e.code} on {url}")
                 time.sleep(30 * (k + 1))
@@ -105,7 +112,24 @@ def api_post(payload):
     if DRY:
         print("DRY POST", json.dumps(payload, ensure_ascii=False)[:1500])
         return {"ok": True}
+    unsure = False                      # після збою POST не знаємо, що вже записано в таблицю
     for k in range(len(API_PAUSES) + 1):
+        if unsure:
+            rows = payload.get("rows") or []
+            try:
+                ids = set(str(x) for x in api_get("known", pauses=()).get("ids", []))
+                left = [r for r in rows if str(r["company_id"]) not in ids]
+                if len(left) != len(rows):
+                    print(f"api_post: {len(rows) - len(left)} рядків уже записано, повторюю решту ({len(left)})")
+                payload = {**payload, "rows": left}
+                unsure = False
+            except Exception as e2:
+                # без перевірки повторний POST дав би дублі - спершу повторюємо перевірку
+                print(f"api_post: перевірка known не вдалась: {e2} (спроба {k + 1}/{len(API_PAUSES) + 1})")
+                if k == len(API_PAUSES):
+                    raise
+                time.sleep(API_PAUSES[k])
+                continue
         data = json.dumps(payload, ensure_ascii=False).encode()
         req = urllib.request.Request(WEBAPP, data=data, headers={"Content-Type": "application/json"})
         try:
@@ -116,17 +140,7 @@ def api_post(payload):
             if k == len(API_PAUSES):
                 raise
             time.sleep(API_PAUSES[k])
-            rows = payload.get("rows") or []
-            if rows:
-                # таймаут міг настати вже після запису: не дублюємо рядки, що вже є в таблиці
-                try:
-                    ids = set(str(x) for x in api_get("known", pauses=()).get("ids", []))
-                    left = [r for r in rows if str(r["company_id"]) not in ids]
-                    if len(left) != len(rows):
-                        print(f"api_post: {len(rows) - len(left)} рядків уже записано, повторюю решту ({len(left)})")
-                    payload = {**payload, "rows": left}
-                except Exception as e2:
-                    print(f"api_post: перевірка known не вдалась: {e2}")
+            unsure = bool(payload.get("rows"))
 
 
 def page_url(url, n):
