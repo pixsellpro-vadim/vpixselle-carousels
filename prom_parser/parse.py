@@ -28,7 +28,7 @@ class Blocked(Exception):
 
 def is_prom(url):
     """Лише сам prom.ua: 403/429 там - справжнє блокування. Власні сайти продавців і cs*.prom.ua - ні."""
-    return urllib.parse.urlparse(url).netloc.lower() in ("prom.ua", "www.prom.ua")
+    return urllib.parse.urlparse(url).netloc.lower() in ("prom.ua", "www.prom.ua", "love.prom.ua")
 
 
 def get(url, tries=3):
@@ -233,7 +233,7 @@ def main():
                 st, final, htm = get(page_url(c["url"], n))
                 pages_used += 1
                 host = urllib.parse.urlparse(final).netloc
-                if st == 404 or (st == 200 and host not in ("prom.ua", "www.prom.ua")):
+                if st == 404 or (st == 200 and host not in ("prom.ua", "www.prom.ua", "love.prom.ua")):
                     # мертва категорія (404) або інший домен (напр. love.prom.ua): n=1 -> пропуск (next_page=0), n>1 -> кінець
                     skip = n == 1
                     api_post({"cats": [{"row": c["row"], "next_page": 0 if skip else n, "status": "готово"}], "rows": []})
