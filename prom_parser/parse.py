@@ -214,6 +214,96 @@ def contacts(cid, site):
     return {"site": site, "email": ", ".join(mails[:2]), "phone": ", ".join(phones[:3]), "city": city}
 
 
+def _clean_phone(raw):
+    d = re.sub(r"\D", "", raw or "")
+    if len(d) == 12 and d.startswith("380"):
+        return "+" + d
+    if len(d) == 10 and d.startswith("0"):
+        return "+38" + d
+    return ""
+
+
+def company_page_info(cid, slug):
+    """Сторінка компанії на Prom для добору контактів: телефон, contactEmail, місто, кількість товарів, сайт.
+    None - сторінку не вдалося отримати; {"gone": True} - компанії вже нема (404/410)."""
+    st, _, htm = get_retry(f"https://prom.ua/ua/c{cid}-{slug or 'company'}.html", need=r'"total":\d+|"webSiteUrl":|"phone":')
+    if st in (404, 410):
+        return {"gone": True}
+    if st != 200 or not htm:
+        return None
+    out = {}
+    m = re.search(r'"total":(\d+)', htm)
+    if m:
+        out["products"] = "10000+" if int(m.group(1)) == 10000 else int(m.group(1))
+    m = re.search(r'"phone":"(\+?[\d\s()\-]{9,22})"', htm)
+    if m and _clean_phone(m.group(1)):
+        out["phone"] = _clean_phone(m.group(1))
+    m = re.search(r'"contactEmail":"([^"]+)"', htm)
+    if m:
+        mail = html.unescape(json.loads('"' + m.group(1) + '"')).strip().lower()
+        if re.fullmatch(r"[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}", mail) and not BAD_MAIL.search(mail):
+            out["email"] = mail
+    m = re.search(r'"addressLocality":"([^"]+)"', htm)
+    if m:
+        out["city"] = html.unescape(json.loads('"' + m.group(1) + '"'))
+    w = re.search(r'"webSiteUrl":"([^"]+)"', htm)
+    if w:
+        site = json.loads('"' + w.group(1) + '"')
+        if urllib.parse.urlparse(site).netloc.lower() not in ("prom.ua", "www.prom.ua"):
+            out["site"] = site
+    return out
+
+
+def refill():
+    """Режим добору (коли всі категорії «готово»): рядки contacts із порожнім телефоном / email / кількістю товарів
+    ще раз шукаємо на сторінці компанії Prom (phone, contactEmail), а якщо нічого - на сайті продавця.
+    Заповнюються лише порожні клітинки; у колонку L пишеться дата перевірки, тож кожен рядок перевіряється один раз.
+    Вихід: 0 = партія пройшла, 3 = рядків для добору нема, 4 = блокування Prom."""
+    res = api_get(f"missing&limit={MAX_COMPANIES}")
+    rows = res.get("rows") or []
+    print(f"refill: rows to re-check in this batch: {len(rows)}")
+    if not rows:
+        print("nothing to refill: all done")
+        return 3
+    today = datetime.now(KYIV).strftime("%Y-%m-%d")
+    updates, stopped = [], False
+    stat = {"phone": 0, "email": 0, "products": 0, "site": 0, "city": 0, "failed": 0}
+    try:
+        for r in rows:
+            cid = str(r["company_id"])
+            have = {k: str(r.get(k, "")).strip() for k in ("phone", "email", "products", "site", "city")}
+            m = re.search(r"/c\d+-([^/.]*)\.html", r.get("prom_url") or "")
+            info = company_page_info(cid, m.group(1) if m else "")
+            failed = info is None
+            info = info or {}
+            found = {k: v for k, v in info.items() if k in have and not have[k] and str(v).strip()}
+            if not info.get("gone") and not (have["phone"] or found.get("phone")) and not (have["email"] or found.get("email")):
+                # нічого не знайшли на Prom - пробуємо сайт продавця (cs<ID>.prom.ua, якщо власного сайту нема)
+                ct = contacts(cid, have["site"] or info.get("site") or f"https://cs{cid}.prom.ua/ua/") or {}
+                for k in ("phone", "email", "city"):
+                    if ct.get(k) and not have[k] and not found.get(k):
+                        found[k] = ct[k]
+                if ct.get("site") and not have["site"] and not found.get("site") \
+                        and urllib.parse.urlparse(ct["site"]).netloc.lower() not in ("prom.ua", "www.prom.ua"):
+                    found["site"] = ct["site"]
+            for k in found:
+                stat[k] += 1
+            if failed and not found:
+                stat["failed"] += 1
+            note = " ".join("+" + k for k in found) or ("збій" if failed else "-")
+            updates.append({"company_id": cid, **found, "checked": f"{today} {note}"})
+            print(f"  {cid}: {note}")
+    except Blocked as e:
+        print("STOP: Prom blocks requests:", e)
+        stopped = True
+    for i in range(0, len(updates), 50):
+        api_post({"updates": updates[i:i + 50]})
+    print(f"refill done: checked {len(updates)}, filled {stat}")
+    if stopped:
+        return 4
+    return 3 if DRY else 0
+
+
 def main():
     if not WEBAPP:
         sys.exit("SHEET_WEBAPP_URL is empty")
@@ -221,8 +311,8 @@ def main():
     known = load_known()
     print(f"categories todo: {len(cats)}, known companies: {len(known)}")
     if not cats:
-        print("nothing to do: all categories done")
-        sys.exit(3)
+        print("all categories done -> refill mode (повторний добір порожніх контактів)")
+        sys.exit(refill())
     done_companies, pages_used = 0, 0
     stopped = False                  # зупинка через блокування/заглушку - зовнішній цикл має завершитися
     try:
